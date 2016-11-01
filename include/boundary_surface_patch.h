@@ -38,7 +38,7 @@ class Boundary_surface_patch : public Boundary_surface
         void init(Input*);
         void set_values();
         void get_mask(Field3d*, Field3d*, Mask*);
-        void get_surface_mask(Field3d*);
+        void get_surface_mask(Field3d*, bool);
 
     private:
         void calc_patch(double*, const double*, const double*, int, double, double, double, double, double, double, double, double);  ///< Calculate the patches

@@ -751,7 +751,7 @@ void Boundary::get_mask(Field3d* field, Field3d* fieldh, Mask* m)
     }
 }
 
-void Boundary::get_surface_mask(Field3d* field)
+void Boundary::get_surface_mask(Field3d* field, bool discrete)
 {
     // Set surface mask
     for (int i=0; i<grid->ijcells; ++i)

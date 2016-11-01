@@ -74,13 +74,17 @@ class Force
         std::string swlspres; ///< Switch for the large scale pressure force.
         std::string swls;     ///< Switch for large scale scalar tendencies.
         std::string swwls;    ///< Switch for large-scale vertical transport of scalars.
+        std::string swcanopy; ///< Switch for simple (dui/dt -= Cd * U * ui) canopy drag
 
         double uflux; ///< Mean velocity used to enforce constant flux.
         double fc;    ///< Coriolis parameter.
+        double Cd;    ///< Canopy drag coefficient
 
-        double* ug;  ///< Pointer to array u-component geostrophic wind.
-        double* vg;  ///< Pointer to array v-component geostrophic wind.
-        double* wls; ///< Pointer to array large-scale vertical velocity.
+        double* ug;    ///< Pointer to array u-component geostrophic wind.
+        double* vg;    ///< Pointer to array v-component geostrophic wind.
+        double* wls;   ///< Pointer to array large-scale vertical velocity.
+        double* acp;   ///< Pointer to array with canopy drag reduction (1..0) with height.
+        double* acph;  ///< Pointer to array acp at half levels
 
         // time dependent variables
         std::string swtimedep;
@@ -106,11 +110,14 @@ class Force
         void advec_wls_2nd(double* const, const double* const,
                            const double* const, const double* const); ///< Calculates the large-scale vertical transport.
 
+        void calc_canopy_drag(double* const, double* const, double* const,
+                              const double* const, const double* const, const double* const,
+                              const double* const, const double* const, const double* const, const double, const double, const double);
+
         // GPU functions and variables
         double* ug_g;  ///< Pointer to GPU array u-component geostrophic wind.
         double* vg_g;  ///< Pointer to GPU array v-component geostrophic wind.
         double* wls_g; ///< Pointer to GPU array large-scale vertical velocity.
         std::map<std::string, double*> timedepdata_g;
-
 };
 #endif

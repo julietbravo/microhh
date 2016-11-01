@@ -43,18 +43,21 @@ Force::Force(Model* modelin, Input* inputin)
     fields = model->fields;
     master = model->master;
 
-    ug  = 0;
-    vg  = 0;
-    wls = 0;
+    ug   = 0;
+    vg   = 0;
+    wls  = 0;
+    acp  = 0;
+    acph = 0;
 
     ug_g  = 0;
     vg_g  = 0;
     wls_g = 0;
 
     int nerror = 0;
-    nerror += inputin->get_item(&swlspres, "force", "swlspres", "", "0");
-    nerror += inputin->get_item(&swls    , "force", "swls"    , "", "0");
-    nerror += inputin->get_item(&swwls   , "force", "swwls"   , "", "0");
+    nerror += inputin->get_item(&swlspres , "force", "swlspres" , "", "0");
+    nerror += inputin->get_item(&swls     , "force", "swls"     , "", "0");
+    nerror += inputin->get_item(&swwls    , "force", "swwls"    , "", "0");
+    nerror += inputin->get_item(&swcanopy , "force", "swcanopy" , "", "0");
 
     if (swlspres != "0")
     {
@@ -85,6 +88,9 @@ Force::Force(Model* modelin, Input* inputin)
         master->print_error("\"%s\" is an illegal option for swwls\n", swwls.c_str());
     }
 
+    if (swcanopy == "1")
+        nerror += inputin->get_item(&Cd, "force", "Cd", "");
+
     // get the list of time varying variables
     nerror += inputin->get_item(&swtimedep  , "force", "swtimedep"  , "", "0");
     nerror += inputin->get_list(&timedeplist, "force", "timedeplist", "");
@@ -98,6 +104,8 @@ Force::~Force()
     delete[] ug;
     delete[] vg;
     delete[] wls;
+    delete[] acp;
+    delete[] acph;
 
     if (swls == "1")
     {
@@ -130,6 +138,12 @@ void Force::init()
 
     if (swwls == "1")
         wls = new double[grid->kcells];
+
+    if (swcanopy == "1")
+    {
+        acp  = new double[grid->kcells];
+        acph = new double[grid->kcells];
+    }
 }
 
 void Force::create(Input *inputin)
@@ -160,6 +174,16 @@ void Force::create(Input *inputin)
     if (swwls == "1")
         nerror += inputin->get_prof(&wls[grid->kstart], "wls", grid->kmax);
 
+    if (swcanopy == "1")
+    {
+        nerror += inputin->get_prof(&acp[grid->kstart], "acp", grid->kmax);
+
+        // Interpolate acp to half levels. Half level kstart (surface) and kend (domain top)
+        // are not needed, as they are exluded from the drag calculation
+        for (int k=grid->kstart+1; k<grid->kend; ++k)
+            acph[k] = 0.5 * (acp[k] + acp[k-1]);
+    }
+
     // process the profiles for the time dependent data
     if (swtimedep == "1")
     {
@@ -172,7 +196,7 @@ void Force::create(Input *inputin)
             // \TODO make sure to give each element its own time series and remove the clear()
             timedeptime.clear();
             std::string name = *it + "ls";
-            if (std::find(timedeplist.begin(), timedeplist.end(), *it) != timedeplist.end()) 
+            if (std::find(timedeplist.begin(), timedeplist.end(), *it) != timedeplist.end())
             {
                 nerror += inputin->get_time_prof(&timedepdata[name], &timedeptime, name, grid->kmax);
 
@@ -183,7 +207,7 @@ void Force::create(Input *inputin)
             }
         }
 
-        // display a warning for the non-supported 
+        // display a warning for the non-supported
         for (std::vector<std::string>::const_iterator ittmp=tmplist.begin(); ittmp!=tmplist.end(); ++ittmp)
             master->print_warning("%s is not supported (yet) as a time dependent parameter\n", ittmp->c_str());
     }
@@ -216,6 +240,16 @@ void Force::exec(double dt)
     {
         for (FieldMap::const_iterator it = fields->st.begin(); it!=fields->st.end(); ++it)
             advec_wls_2nd(it->second->data, fields->sp[it->first]->datamean, wls, grid->dzhi);
+    }
+
+    if (swcanopy == "1")
+    {
+        bool discrete_mask = false;
+        model->boundary->get_surface_mask(fields->atmp["tmp1"], discrete_mask);
+
+        calc_canopy_drag(fields->ut->data, fields->vt->data, fields->wt->data,
+                         fields->u->data,  fields->v->data,  fields->w->data,
+                         acp, acph, fields->atmp["tmp1"]->databot, Cd, grid->utrans, grid->vtrans);
     }
 }
 #endif
@@ -285,7 +319,7 @@ void Force::update_time_dependent_profs(const double fac0, const double fac1, co
 }
 #endif
 
-void Force::calc_flux(double* const restrict ut, const double* const restrict u, 
+void Force::calc_flux(double* const restrict ut, const double* const restrict u,
                       const double* const restrict dz, const double dt)
 {
     const int jj = grid->icells;
@@ -298,7 +332,7 @@ void Force::calc_flux(double* const restrict ut, const double* const restrict u,
 
     for (int k=grid->kstart; k<grid->kend; ++k)
         for (int j=grid->jstart; j<grid->jend; ++j)
-#pragma ivdep
+            #pragma ivdep
             for (int i=grid->istart; i<grid->iend; ++i)
             {
                 const int ijk = i + j*jj + k*kk;
@@ -312,7 +346,7 @@ void Force::calc_flux(double* const restrict ut, const double* const restrict u,
     uavg  = uavg  / (grid->itot*grid->jtot*grid->zsize);
     utavg = utavg / (grid->itot*grid->jtot*grid->zsize);
 
-    double fbody; 
+    double fbody;
     fbody = (uflux - uavg - ugrid) / dt - utavg;
 
     for (int n=0; n<grid->ncells; n++)
@@ -332,7 +366,7 @@ void Force::calc_coriolis_2nd(double* const restrict ut, double* const restrict 
 
     for (int k=grid->kstart; k<grid->kend; ++k)
         for (int j=grid->jstart; j<grid->jend; ++j)
-#pragma ivdep
+            #pragma ivdep
             for (int i=grid->istart; i<grid->iend; ++i)
             {
                 const int ijk = i + j*jj + k*kk;
@@ -341,7 +375,7 @@ void Force::calc_coriolis_2nd(double* const restrict ut, double* const restrict 
 
     for (int k=grid->kstart; k<grid->kend; ++k)
         for (int j=grid->jstart; j<grid->jend; ++j)
-#pragma ivdep
+            #pragma ivdep
             for (int i=grid->istart; i<grid->iend; ++i)
             {
                 const int ijk = i + j*jj + k*kk;
@@ -366,7 +400,7 @@ void Force::calc_coriolis_4th(double* const restrict ut, double* const restrict 
 
     for (int k=grid->kstart; k<grid->kend; ++k)
         for (int j=grid->jstart; j<grid->jend; ++j)
-#pragma ivdep
+            #pragma ivdep
             for (int i=grid->istart; i<grid->iend; ++i)
             {
                 const int ijk = i + j*jj1 + k*kk1;
@@ -379,7 +413,7 @@ void Force::calc_coriolis_4th(double* const restrict ut, double* const restrict 
 
     for (int k=grid->kstart; k<grid->kend; ++k)
         for (int j=grid->jstart; j<grid->jend; ++j)
-#pragma ivdep
+            #pragma ivdep
             for (int i=grid->istart; i<grid->iend; ++i)
             {
                 const int ijk = i + j*jj1 + k*kk1;
@@ -433,4 +467,84 @@ void Force::advec_wls_2nd(double* const restrict st, const double* const restric
                 }
         }
     }
+}
+
+void Force::calc_canopy_drag(double* const restrict ut, double* const restrict vt, double* const restrict wt,
+                             const double* const restrict u, const double* const restrict v, const double* const restrict w,
+                             const double* const restrict cdens, const double* const restrict cdensh,
+                             const double* const restrict mask,
+                             const double Cd, const double ugrid, const double vgrid)
+{
+    const int ii = 1;
+    const int jj = grid->icells;
+    const int kk = grid->ijcells;
+
+    // Get grid level where reduction function equals zero
+    int kend_canopy = grid->kend;
+    for (int k=grid->kstart; k<grid->kend; ++k)
+        if (cdens[k] <= 0)
+        {
+            kend_canopy = k;
+            break;
+        }
+
+    for (int k=grid->kstart; k<kend_canopy; ++k)
+        for (int j=grid->jstart; j<grid->jend; ++j)
+            #pragma ivdep
+            for (int i=grid->istart; i<grid->iend; ++i)
+            {
+                const int ijk = i + j*jj + k*kk;
+                const int ij  = i + j*jj;
+
+                const double v_at_u = 0.25 * (v[ijk] + v[ijk+jj] + v[ijk+jj-ii] + v[ijk-ii]) + vgrid;
+                const double w_at_u = 0.25 * (w[ijk] + w[ijk+kk] + w[ijk+kk-ii] + w[ijk-ii]);
+                const double u_tot  = pow(pow(u[ijk]+ugrid, 2) + pow(v_at_u, 2) + pow(w_at_u, 2), 0.5);
+
+                ut[ijk] -= mask[ij] * Cd * cdens[k] * u_tot * (u[ijk]+ugrid);
+            }
+
+    for (int k=grid->kstart; k<kend_canopy; ++k)
+    {
+        for (int j=grid->jstart; j<grid->jend; ++j)
+            #pragma ivdep
+            for (int i=grid->istart; i<grid->iend; ++i)
+            {
+                const int ijk = i + j*jj + k*kk;
+                const int ij  = i + j*jj;
+
+                const double u_at_v = 0.25 * (u[ijk] + u[ijk+ii] + u[ijk+ii-jj] + u[ijk-jj]) + ugrid;
+                const double w_at_v = 0.25 * (w[ijk] + w[ijk+kk] + w[ijk+kk-jj] + w[ijk-jj]);
+                const double u_tot  = pow(pow(v[ijk]+vgrid, 2) + pow(u_at_v, 2) + pow(w_at_v, 2), 0.5);
+
+                vt[ijk] -= mask[ij] * Cd * cdens[k] * u_tot * (v[ijk]+vgrid);
+            }
+    }
+
+    // Get grid level where reduction function equals zero
+    kend_canopy = grid->kend;
+    for (int k=grid->kstart+1; k<grid->kend; ++k)
+        if (cdensh[k] <= 0)
+        {
+            kend_canopy = k;
+            break;
+        }
+
+    for (int k=grid->kstart+1; k<kend_canopy; ++k)
+    {
+        for (int j=grid->jstart; j<grid->jend; ++j)
+            #pragma ivdep
+            for (int i=grid->istart; i<grid->iend; ++i)
+            {
+                const int ijk = i + j*jj + k*kk;
+                const int ij  = i + j*jj;
+
+                const double u_at_w = 0.25 * (u[ijk] + u[ijk+ii] + u[ijk+ii-kk] + u[ijk-kk]) + ugrid;
+                const double v_at_w = 0.25 * (v[ijk] + v[ijk+jj] + v[ijk+jj-kk] + v[ijk-kk]) + vgrid;
+                const double u_tot  = pow(pow(u_at_w, 2) + pow(v_at_w, 2) + pow(w[ijk], 2), 0.5);
+
+                wt[ijk] -= mask[ij] * Cd * cdensh[k] * u_tot * (w[ijk]);
+            }
+    }
+
+
 }

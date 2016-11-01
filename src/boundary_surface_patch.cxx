@@ -160,7 +160,7 @@ void Boundary_surface_patch::get_mask(Field3d* field, Field3d* fieldh, Mask* m)
     grid->boundary_cyclic_2d(fieldh->databot);
 }
 
-void Boundary_surface_patch::get_surface_mask(Field3d* field)
+void Boundary_surface_patch::get_surface_mask(Field3d* field, bool discrete)
 {
     const int jj = grid->icells;
 
@@ -169,18 +169,21 @@ void Boundary_surface_patch::get_surface_mask(Field3d* field)
                patch_yh, patch_yr, patch_yi, 
                patch_xoffs, patch_yoffs);
 
-    // Set the values ranging between 0....1 to 0 or 1
-    for (int j=grid->jstart; j<grid->jend; ++j)
-        #pragma ivdep
-        for (int i=grid->istart; i<grid->iend; ++i)
-        {
-            const int ij = i + j*jj;
+    if (discrete)
+    {
+        // Set the values ranging between 0....1 to 0 or 1
+        for (int j=grid->jstart; j<grid->jend; ++j)
+            #pragma ivdep
+            for (int i=grid->istart; i<grid->iend; ++i)
+            {
+                const int ij = i + j*jj;
 
-            if (fields->atmp["tmp1"]->databot[ij] >= 0.5)
-                field->databot[ij] = 1;
-            else
-                field->databot[ij] = 0;
-        }
+                if (fields->atmp["tmp1"]->databot[ij] >= 0.5)
+                    field->databot[ij] = 1;
+                else
+                    field->databot[ij] = 0;
+            }
+    }
 }
 
 void Boundary_surface_patch::calc_patch(double* const restrict patch, const double* const restrict x, const double* const restrict y,

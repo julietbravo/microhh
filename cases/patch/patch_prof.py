@@ -14,7 +14,8 @@ dz_s     = 1.04  # Increase grid spacing per grid level (-)
 
 # Create empty arrays for vertical profiles
 z    = np.zeros(kmax) # Full grid level (m)
-th   = np.zeros(kmax) # potential temperature (K)
+th   = np.zeros(kmax) # liquid water potential temperature (K)
+qt   = np.zeros(kmax) # Specific humitidy (g/kg)
 u    = np.zeros(kmax) # u-component wind (m/s)
 ug   = np.zeros(kmax) # u-component geostrophic wind (m/s)
 acp  = np.zeros(kmax) # Reduction function canopy drag (0..1)
@@ -39,8 +40,9 @@ replace_namelist_var('zsize', zh[-1])
 # Define the profiles:
 for k in range(kmax):
     th  [k] = 300. + dthetadz*z[k]
-    u   [k] = 10.
-    ug  [k] = 10.
+    qt  [k] = 5e-3 * np.exp(-z[k] / 2000)
+    u   [k] = 0.
+    ug  [k] = 0.
 
     # Canopy drag reduction from 1 at surface to 0 at z_canopy:
     if (z[k] < z_canopy):
@@ -49,7 +51,7 @@ for k in range(kmax):
 # Write the data to *.prof file as input for MicroHH. Profiles which aren't specified 
 # (like e.g. `v` or `vg` in this case) are initialised at zero by the model.
 proffile = open('patch.prof','w')
-proffile.write('{0:^20s} {1:^20s} {2:^20s} {3:^20s} {4:^20s}\n'.format('z','th','u','ug','acp'))   # header
+proffile.write('{0:^20s} {1:^20s} {2:^20s} {3:^20s} {4:^20s} {5:^20s}\n'.format('z','thl','qt','u','ug','acp'))   # header
 for k in range(kmax):
-    proffile.write('{0:1.14E} {1:1.14E} {2:1.14E} {3:1.14E} {4:1.14E}\n'.format(z[k],th[k],u[k],ug[k],acp[k]))
+    proffile.write('{0:1.14E} {1:1.14E} {2:1.14E} {3:1.14E} {4:1.14E} {5:1.14E}\n'.format(z[k],th[k],qt[k],u[k],ug[k],acp[k]))
 proffile.close()

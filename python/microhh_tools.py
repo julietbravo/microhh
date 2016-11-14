@@ -69,6 +69,7 @@ def replace_namelist_var(variable, new_value, namelist_file=None):
         for line in lines:
             source.write(re.sub(r'({}).*'.format(variable), r'\1={}'.format(new_value), line))
 
+
 class Read_statistics:
     """ Read all statistics to memory """
     def __init__(self, stat_file):
@@ -109,6 +110,34 @@ def get_cross_indices(variable, mode):
     indices.sort()
     return indices
 
+# Thermodynamics, as in MicroHH
+T0   = 273.15
+Rd   = 287.04
+Rv   = 461.5
+cp   = 1005.
+ep   = Rd/Rv
+
+c00  = +6.1121000000E+02;
+c10  = +4.4393067270E+01;
+c20  = +1.4279398448E+00;
+c30  = +2.6415206946E-02;
+c40  = +3.0291749160E-04;
+c50  = +2.1159987257E-06;
+c60  = +7.5015702516E-09;
+c70  = -1.5604873363E-12;
+c80  = -9.9726710231E-14;
+c90  = -4.8165754883E-17;
+c100 = +1.3839187032E-18;
+
+def esat(T):
+    x = np.maximum(T-T0, -75.)
+    return c00+x*(c10+x*(c20+x*(c30+x*(c40+x*(c50+x*(c60+x*(c70+x*(c80+x*(c90+x*c100)))))))))
+
+def qsat(p, T):
+    return ep*esat(T)/(p-(1-ep)*esat(T))
+
+def exner(p, p0=1e5):
+    return pow((p/p0),(Rd/cp))
 
 if __name__ == "__main__":
     """ Examples """
@@ -120,3 +149,4 @@ if __name__ == "__main__":
     # Read all statistics
     s = Read_statistics('patch.default.0000000.nc')
     print('Statistics heights: {}, ....'.format(s.z[:2]))
+

@@ -1,14 +1,18 @@
 import numpy as np
-from microhh_tools import *
+import matplotlib.pylab as pl
+
+from microhh_tools import *     # Available in MICROHH_DIR/python/
 
 # Read the name list (.ini file)
 nl    = Read_namelist()
 kmax  = nl.grid.ktot
 zsize = nl.grid.zsize
 
+# Initial profiles
+# ----------------------------------------------
 # Case settings
 dthetadz = 0.003 # Potential temperature lapse rate (K/m)
-z_canopy = 200   # Height of canopy (m)
+z_canopy = 100   # Height of canopy (m)
 dz_0     = 10    # Grid spacing lowest grid level (m)
 dz_s     = 1.04  # Increase grid spacing per grid level (-)
 
@@ -30,19 +34,17 @@ for k in range(1, kmax+1):
     zh[k] = zh[k-1] + dz[k-1] 
 for k in range(kmax):
     z[k] = 0.5 * (zh[k] + zh[k+1])    
+
 # Write the vertical grid size back to the namelist:
 print('zsize = {}'.format(zh[-1]))
 replace_namelist_var('zsize', zh[-1])
 
-#dz = zsize / kmax
-#z = np.linspace(0.5*dz, zsize-0.5*dz, kmax)
-
 # Define the profiles:
 for k in range(kmax):
-    th  [k] = 300. + dthetadz*z[k]
-    qt  [k] = 5e-3 * np.exp(-z[k] / 2000)
-    u   [k] = 0.
-    ug  [k] = 0.
+    th[k] = 300. + dthetadz * z[k]
+    qt[k] = 5e-3 * np.exp(-z[k] / 2000)
+    u [k] = 0.
+    ug[k] = 0.
 
     # Canopy drag reduction from 1 at surface to 0 at z_canopy:
     if (z[k] < z_canopy):
@@ -55,3 +57,17 @@ proffile.write('{0:^20s} {1:^20s} {2:^20s} {3:^20s} {4:^20s} {5:^20s}\n'.format(
 for k in range(kmax):
     proffile.write('{0:1.14E} {1:1.14E} {2:1.14E} {3:1.14E} {4:1.14E} {5:1.14E}\n'.format(z[k],th[k],qt[k],u[k],ug[k],acp[k]))
 proffile.close()
+
+# Time dependent surface data
+# ----------------------------------------------
+time = np.arange(0,36000.01,3600)
+wthl = 0.1  * np.sin(np.pi * time / time.max())
+wqt  = 1e-4 * np.sin(np.pi * time / time.max())
+
+# Write to *.time file as input for MicroHH.
+timefile = open('patch.time','w')
+timefile.write('{0:^20s} {1:^20s} {2:^20s}\n'.format('t','sbot[thl]', 'sbot[qt]'))
+for t in range(time.size):
+    timefile.write('{0:1.14E} {1:1.14E} {2:1.14E}\n'.format(time[t], wthl[t], wqt[t]))
+timefile.close()
+

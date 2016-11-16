@@ -258,16 +258,19 @@ void Boundary::update_time_dependent()
         {
             sbc[it1->first]->bot = fac0*it2->second[index0] + fac1*it2->second[index1];
 
-            // BvS: for now branched here; seems a bit wasteful to copy the entire settimedep to boundary.cu?
-            const double noOffset = 0.;
+            //// BvS: for now branched here; seems a bit wasteful to copy the entire settimedep to boundary.cu?
+            //const double noOffset = 0.;
 
-#ifndef USECUDA
-            set_bc(it1->second->databot, it1->second->datagradbot, it1->second->datafluxbot, sbc[it1->first]->bcbot, sbc[it1->first]->bot, it1->second->visc, noOffset);
-#else
-            set_bc_g(it1->second->databot_g, it1->second->datagradbot_g, it1->second->datafluxbot_g, sbc[it1->first]->bcbot, sbc[it1->first]->bot, it1->second->visc, noOffset);
-#endif
+            //#ifndef USECUDA
+            //set_bc(it1->second->databot, it1->second->datagradbot, it1->second->datafluxbot, sbc[it1->first]->bcbot, sbc[it1->first]->bot, it1->second->visc, noOffset);
+            //#else
+            //set_bc_g(it1->second->databot_g, it1->second->datagradbot_g, it1->second->datafluxbot_g, sbc[it1->first]->bcbot, sbc[it1->first]->bot, it1->second->visc, noOffset);
+            //#endif
         }
     }
+
+    // BvS: this sets all BC's, only the sbcbot would be sufficient....
+    set_values();
 }
 
 void Boundary::set_values()

@@ -38,7 +38,6 @@ class Boundary_surface_bulk : public Boundary_surface
         ~Boundary_surface_bulk();
 
         void init(Input*);
-        void set_values();
 
     private:
         // surface scheme

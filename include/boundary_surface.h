@@ -39,7 +39,6 @@ class Boundary_surface : public Boundary
 
         virtual void init(Input*);
         void create(Input*);
-        virtual void set_values();
 
         void exec_stats(Mask*); ///< Execute statistics of surface
         void exec_cross();      ///< Execute cross sections of surface

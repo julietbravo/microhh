@@ -115,25 +115,6 @@ void Boundary_surface_bulk::init(Input *inputin)
     }
 }
 
-void Boundary_surface_bulk::set_values()
-{
-    const double no_velocity = 0.;
-    const double no_offset = 0.;
-
-    // grid transformation is properly taken into account by setting the databot and top values
-    set_bc(fields->u->databot, fields->u->datagradbot, fields->u->datafluxbot, mbcbot, no_velocity, fields->visc, grid->utrans);
-    set_bc(fields->v->databot, fields->v->datagradbot, fields->v->datafluxbot, mbcbot, no_velocity, fields->visc, grid->vtrans);
-
-    set_bc(fields->u->datatop, fields->u->datagradtop, fields->u->datafluxtop, mbctop, no_velocity, fields->visc, grid->utrans);
-    set_bc(fields->v->datatop, fields->v->datagradtop, fields->v->datafluxtop, mbctop, no_velocity, fields->visc, grid->vtrans);
-
-    for (FieldMap::const_iterator it=fields->sp.begin(); it!=fields->sp.end(); ++it)
-    {
-        set_bc(it->second->databot, it->second->datagradbot, it->second->datafluxbot, sbc[it->first]->bcbot, sbc[it->first]->bot, it->second->visc, no_offset);
-        set_bc(it->second->datatop, it->second->datagradtop, it->second->datafluxtop, sbc[it->first]->bctop, sbc[it->first]->top, it->second->visc, no_offset);
-    }
-}
-
 //#ifndef USECUDA
 void Boundary_surface_bulk::calculate_du(double* restrict dutot, double* restrict u, double* restrict v, double* restrict ubot, double* restrict vbot)
 {

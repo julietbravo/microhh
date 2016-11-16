@@ -87,6 +87,13 @@ void Boundary_surface::create(Input *inputin)
         stats->add_time_series("ustar", "Surface friction velocity", "m s-1");
         stats->add_time_series("obuk", "Obukhov length", "m");
     }
+
+    // Prepare the lookup table for the surface solver
+    init_solver();
+
+    // in case the momentum has a fixed ustar, set the value to that of the input
+    if (mbcbot == Ustar_type)
+        set_ustar();
 }
 
 void Boundary_surface::init(Input *inputin)
@@ -196,13 +203,15 @@ void Boundary_surface::init_surface()
 
     // initialize the obukhov length on a small number
     for (int j=0; j<grid->jcells; ++j)
-#pragma ivdep
+        #pragma ivdep
         for (int i=0; i<grid->icells; ++i)
         {
             const int ij = i + j*jj;
             obuk[ij]  = Constants::dsmall;
             nobuk[ij] = 0;
         }
+
+
 }
 
 void Boundary_surface::exec_cross()
@@ -225,31 +234,6 @@ void Boundary_surface::exec_stats(Mask *m)
 {
     stats->calc_mean2d(&m->tseries["obuk"].data , obuk , 0., fields->atmp["tmp4"]->databot, &stats->nmaskbot);
     stats->calc_mean2d(&m->tseries["ustar"].data, ustar, 0., fields->atmp["tmp4"]->databot, &stats->nmaskbot);
-}
-
-void Boundary_surface::set_values()
-{
-    const double no_offset = 0.;
-
-    // grid transformation is properly taken into account by setting the databot and top values
-    set_bc(fields->u->databot, fields->u->datagradbot, fields->u->datafluxbot, mbcbot, ubot, fields->visc, grid->utrans);
-    set_bc(fields->v->databot, fields->v->datagradbot, fields->v->datafluxbot, mbcbot, vbot, fields->visc, grid->vtrans);
-
-    set_bc(fields->u->datatop, fields->u->datagradtop, fields->u->datafluxtop, mbctop, utop, fields->visc, grid->utrans);
-    set_bc(fields->v->datatop, fields->v->datagradtop, fields->v->datafluxtop, mbctop, vtop, fields->visc, grid->vtrans);
-
-    for (FieldMap::const_iterator it=fields->sp.begin(); it!=fields->sp.end(); ++it)
-    {
-        set_bc(it->second->databot, it->second->datagradbot, it->second->datafluxbot, sbc[it->first]->bcbot, sbc[it->first]->bot, it->second->visc, no_offset);
-        set_bc(it->second->datatop, it->second->datagradtop, it->second->datafluxtop, sbc[it->first]->bctop, sbc[it->first]->top, it->second->visc, no_offset);
-    }
-
-    // in case the momentum has a fixed ustar, set the value to that of the input
-    if (mbcbot == Ustar_type)
-        set_ustar();
-
-    // Prepare the lookup table for the surface solver
-    init_solver();
 }
 
 void Boundary_surface::set_ustar()

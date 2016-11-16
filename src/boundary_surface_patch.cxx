@@ -92,13 +92,6 @@ void Boundary_surface_patch::set_values()
         set_bc      (it->second->datatop, it->second->datagradtop, it->second->datafluxtop,
                      sbc[it->first]->bctop, sbc[it->first]->top, it->second->visc, no_offset);
     }
-
-    // in case the momentum has a fixed ustar, set the value to that of the input
-    if (mbcbot == Ustar_type)
-        set_ustar();
-
-    // Prepare the lookup table for the surface solver
-    init_solver();
 }
 
 void Boundary_surface_patch::get_mask(Field3d* field, Field3d* fieldh, Mask* m)

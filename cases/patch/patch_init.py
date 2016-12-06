@@ -1,63 +1,66 @@
 import numpy as np
 import matplotlib.pylab as pl
 
-from microhh_tools import *     # Available in MICROHH_DIR/python/
+import microhh_tools as mhh     # Available in MICROHH_DIR/python/
 
 # Read the name list (.ini file)
-nl    = Read_namelist()
+nl    = mhh.Read_namelist()
 kmax  = nl.grid.ktot
 zsize = nl.grid.zsize
 
-# Initial profiles
-# ----------------------------------------------
-# Case settings
-dthetadz = 0.003 # Potential temperature lapse rate (K/m)
-lambda_q = 2000  # Moisture scale height (Stevens, 2007, (m))
+# --------------------------------------
+# Create (stretched) vertical grid:
+z     = np.zeros(kmax)      # Grid height at cell center
+zh    = np.zeros(kmax+1)    # Grid height at cell edges
 
-z_canopy = 100   # Height of canopy (m) (only for swcanopy=1 in patch.ini) 
-dz_0     = 10    # Grid spacing lowest grid level (m) (only for stretched grid)
-dz_s     = 1.04  # Increase grid spacing per grid level (-) (only for stretched grid)
+# For ktot=128
+#dz0   = 10.                 # Vertical grid spacing near surface
+#dzs   = 1.02                # Increase grid spacing per level with height
+#dzmax = 40                  # Maximum vertical grid spacing
 
-# Create empty arrays for vertical profiles
-z    = np.zeros(kmax) # Full grid level (m)
-th   = np.zeros(kmax) # liquid water potential temperature (K)
-qt   = np.zeros(kmax) # Specific humitidy (g/kg)
-u    = np.zeros(kmax) # u-component wind (m/s)
-ug   = np.zeros(kmax) # u-component geostrophic wind (m/s)
-acp  = np.zeros(kmax) # Reduction function canopy drag (0..1)
+# For quick tests without patches, using ktot=64
+dz0   = 35.                 # Vertical grid spacing near surface
+dzs   = 1.035               # Increase grid spacing per level with height
+dzmax = 60                  # Maximum vertical grid spacing
 
-# Define vertical grid -> stretched
-if  (False):
-    dz    = np.zeros(kmax)
-    zh    = np.zeros(kmax+1)
-    dz[0] = dz_0
-    for k in range(1, kmax):
-        dz[k] = dz[k-1] * dz_s
-    for k in range(1, kmax+1):
-        zh[k] = zh[k-1] + dz[k-1]
-    for k in range(kmax):
-        z[k] = 0.5 * (zh[k] + zh[k+1])
+# Calculate grid at cell edges:
+dz = dz0
+for k in range(1,kmax+1):
+    zh[k] = zh[k-1] + dz
+    dz   *= dzs
+    dz    = min(dz, dzmax)
 
-    # Write the vertical grid size back to the namelist:
-    print('zsize = {}'.format(zh[-1]))
-    replace_namelist_var('zsize', zh[-1])
-
-# Define vertical grid -> uniform
-if (True):
-    dz = zsize / kmax
-    z  = np.linspace(0.5*dz, zsize-0.5*dz, kmax)
-
-# Define the profiles:
+# Calculate grid at cell center:
 for k in range(kmax):
-    th[k] = 300. + dthetadz * z[k]
-    qt[k] = 5e-3 * np.exp(-z[k] / lambda_q)
-    u [k] = 0.
-    ug[k] = 0.
+    z[k]  = 0.5 * (zh[k] + zh[k+1])
 
-    # Canopy drag reduction from 1 at surface to 0 at z_canopy:
+# Write the vertical domain size back the the .ini file:
+print('zsize = {}'.format(zh[-1]))
+mhh.replace_namelist_var('zsize', zh[-1])
+
+# --------------------------------------
+# Define initial vertical profiles:
+th   = np.zeros(kmax)       # liquid water potential temperature (K)
+qt   = np.zeros(kmax)       # Specific humitidy (g/kg)
+u    = np.zeros(kmax)       # u-component wind (m/s)
+ug   = np.zeros(kmax)       # u-component geostrophic wind (m/s)
+acp  = np.zeros(kmax)       # Reduction function canopy drag (0..1)
+
+# Thermodynamic quantities:
+th[:]  = 290 + 0.0045 * z
+qt[:]  = 11e-3 * np.exp(-z/2000)
+
+# Wind:
+u[:]   = 0.
+ug[:]  = 0.
+
+# Canopy drag over the city:
+z_canopy = 100.
+for k in range(kmax):
     if (z[k] < z_canopy):
-        acp [k] = 1-(z[k]/z_canopy)
+        acp[k] = 1-(z[k]/z_canopy)
 
+# --------------------------------------
 # Write the data to *.prof file as input for MicroHH. Profiles which aren't specified
 # (like e.g. `v` or `vg` in this case) are initialised at zero by the model.
 proffile = open('patch.prof','w')
@@ -69,13 +72,47 @@ proffile.close()
 # Time dependent surface data
 # ----------------------------------------------
 time = np.arange(0,36000.01,3600)
-wthl = 0.1  * np.sin(np.pi * time / time.max())
-wqt  = 1e-4 * np.sin(np.pi * time / time.max())
+thls = th[0] + 10 * np.sin(np.pi * time / time.max())
+qts  = 0.6 * mhh.qsat(1e5, thls)        # assuming T=theta at surface (p=pref)
 
 # Write to *.time file as input for MicroHH.
 timefile = open('patch.time','w')
 timefile.write('{0:^20s} {1:^20s} {2:^20s}\n'.format('t','sbot[thl]', 'sbot[qt]'))
 for t in range(time.size):
-    timefile.write('{0:1.14E} {1:1.14E} {2:1.14E}\n'.format(time[t], wthl[t], wqt[t]))
+    timefile.write('{0:1.14E} {1:1.14E} {2:1.14E}\n'.format(time[t], thls[t], qts[t]))
 timefile.close()
 
+if (True):
+    pl.close('all')
+
+    pl.figure()
+    pl.subplot(321)
+    pl.title('Vertical grid', loc='left')
+    pl.plot(z, zh[1:]-zh[:-1], '-x')
+    pl.xlabel('z (m)')
+    pl.ylabel('dz (m)')
+
+    pl.subplot(322)
+    pl.plot(th, z, '-x')
+    pl.xlabel('th (K)')
+    pl.ylabel('z (m)')
+
+    pl.subplot(323)
+    pl.plot(qt*1000, z, '-x')
+    pl.xlabel('qt (g/kg)')
+    pl.ylabel('z (m)')
+
+    pl.subplot(324)
+    pl.plot(acp, z, '-x')
+    pl.xlabel('acp (-)')
+    pl.ylabel('z (m)')
+
+    #pl.subplot(325)
+    #pl.plot(time/3600, wthl, '-x')
+    #pl.xlabel('time (h)')
+    #pl.ylabel('wthl (K/m/s)')
+
+    #pl.subplot(326)
+    #pl.plot(time/3600, wqt*1000., '-x')
+    #pl.xlabel('time (h)')
+    #pl.ylabel('wqt (g/kg/m/s)')

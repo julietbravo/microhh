@@ -23,7 +23,7 @@ def _int_or_float_or_str(value):
 def _convert_value(value):
     """ Helper function: convert namelist value or list """
     if ',' in value:
-        value = value.split(',')
+        value = value.split(',') 
         return [_int_or_float_or_str(val) for val in value]
     else:
         return _int_or_float_or_str(value)
@@ -33,9 +33,9 @@ def _find_namelist_file():
     """ Helper function: automatically find the .ini file in the current directory """
     namelist_file = glob.glob('*.ini')
     if len(namelist_file) == 0:
-        raise RuntimeError('Can\'t find any .ini files in the current directory!')
+        raise RuntimeError('Can\'t find any .ini files in the current directory!') 
     if len(namelist_file) > 1:
-        raise RuntimeError('There are multiple .ini files: {}'.format(namelist_file))
+        raise RuntimeError('There are multiple .ini files: {}'.format(namelist_file)) 
     else:
         return namelist_file[0]
 
@@ -69,7 +69,6 @@ def replace_namelist_var(variable, new_value, namelist_file=None):
         for line in lines:
             source.write(re.sub(r'({}).*'.format(variable), r'\1={}'.format(new_value), line))
 
-
 class Read_statistics:
     """ Read all statistics to memory """
     def __init__(self, stat_file):
@@ -79,9 +78,9 @@ class Read_statistics:
         self.units      = {}
         self.names      = {}
         self.dimensions = {}
-
+       
         for var in f.variables:
-            self.data[var]       = f.variables[var].__array__()
+            self.data[var]       = f.variables[var].__array__() 
             self.units[var]      = f.variables[var].units
             self.names[var]      = f.variables[var].long_name
             self.dimensions[var] = f.variables[var].dimensions
@@ -93,12 +92,14 @@ class Read_statistics:
         if name in self.data:
             return self.data[name]
         else:
-            raise RuntimeError('Can\'t find variable {} in statistics file'.format(name))
+            raise RuntimeError('Can\'t find variable \"{}\" in statistics file'.format(name))
 
     def __getattr__(self, name):
         """ Retrieve data arrays using notation s.th """
         if name in self.data:
             return self.data[name]
+        else:
+            raise RuntimeError('Can\'t find variable \"{}\" in statistics file'.format(name))
 
 
 def get_cross_indices(variable, mode):
@@ -110,34 +111,33 @@ def get_cross_indices(variable, mode):
     indices.sort()
     return indices
 
-# Thermodynamics, as in MicroHH
-T0   = 273.15
-Rd   = 287.04
-Rv   = 461.5
-cp   = 1005.
-ep   = Rd/Rv
 
-c00  = +6.1121000000E+02;
-c10  = +4.4393067270E+01;
-c20  = +1.4279398448E+00;
-c30  = +2.6415206946E-02;
-c40  = +3.0291749160E-04;
-c50  = +2.1159987257E-06;
-c60  = +7.5015702516E-09;
-c70  = -1.5604873363E-12;
-c80  = -9.9726710231E-14;
-c90  = -4.8165754883E-17;
-c100 = +1.3839187032E-18;
+# Thermodynamics:
+Rd  = 287.04   # Gas constant for dry air [J K-1 kg-1] 
+Rv  = 461.5    # Gas constant for water vapor [J K-1 kg-1]
+cp  = 1005     # Specific heat of air at constant pressure [J kg-1 K-1]
+Lv  = 2.5e6    # Latent heat of condensation or vaporization [J kg-1]
+T0  = 273.15   # Freezing / melting temperature [K]
+p0  = 1.e5     # Reference pressure [pa]
+ep  = Rd/Rv;
 
 def esat(T):
-    x = np.maximum(T-T0, -75.)
+    """ Saturation vapor pressue (Pa) as a function of temperature """
+    c00  = +6.1121000000E+02; c10  = +4.4393067270E+01; c20  = +1.4279398448E+00; c30  = +2.6415206946E-02
+    c40  = +3.0291749160E-04; c50  = +2.1159987257E-06; c60  = +7.5015702516E-09; c70  = -1.5604873363E-12
+    c80  = -9.9726710231E-14; c90  = -4.8165754883E-17; c100 = +1.3839187032E-18
+
+    x = np.maximum(-75, T-T0)
     return c00+x*(c10+x*(c20+x*(c30+x*(c40+x*(c50+x*(c60+x*(c70+x*(c80+x*(c90+x*c100)))))))))
 
 def qsat(p, T):
+    """ Saturation specific humidity (kg/kg) as a function of pressure (p, Pa) and temperature (T, K) """
     return ep*esat(T)/(p-(1-ep)*esat(T))
 
-def exner(p, p0=1e5):
-    return pow((p/p0),(Rd/cp))
+def exner(p):
+    """ Exner function """
+    return (p/p0)**(Rd/cp)
+
 
 if __name__ == "__main__":
     """ Examples """
@@ -149,4 +149,3 @@ if __name__ == "__main__":
     # Read all statistics
     s = Read_statistics('patch.default.0000000.nc')
     print('Statistics heights: {}, ....'.format(s.z[:2]))
-

@@ -1,41 +1,54 @@
 import matplotlib.pylab as pl
 import numpy as np
 
+pl.close('all')
 pl.ion()
 
-from microhh_tools import *   # Available in the MICROHH_DIR/python directory
+import microhh_tools as mhh    # Available in the MICROHH_DIR/python directory
 
-s  = Read_statistics('patch.default.0000000.nc')
-sc = Read_statistics('patch.patch_high.0000000.nc')
-sr = Read_statistics('patch.patch_low.0000000.nc')
+s  = mhh.Read_statistics('patch.default.0000000.nc')
 
 t = -1
 
+# Vertical profiles
 pl.figure()
-pl.subplot(221)
-pl.plot(s. thl[t,:], s. z, label='full')
-pl.plot(sc.thl[t,:], sc.z, label='city')
-pl.plot(sr.thl[t,:], sr.z, label='rural')
+pl.subplot(321)
+pl.plot(s. thl[t,:], s. z)
 pl.legend(frameon=False)
+pl.subplot(322)
+pl.plot(s. qt[t,:]*1000, s. z)
+pl.subplot(323)
+pl.plot(s. ql[t,:]*1000, s. z)
+pl.subplot(324)
+pl.plot(s. u[t,:], s. z)
+pl.subplot(325)
+pl.plot(s. v[t,:], s. z)
 
-pl.subplot(222)
-pl.plot(s. qt[t,:]*1000, s. z, label='full')
-pl.plot(sc.qt[t,:]*1000, sc.z, label='city')
-pl.plot(sr.qt[t,:]*1000, sr.z, label='rural')
-pl.legend(frameon=False)
+# Relative humidity
+pl.figure()
+pl.subplot(111)
+T = s.thl * mhh.exner(s.ph)
+pl.plot(s.qt[0, :] / mhh.qsat(s.ph[0, :], T[0, :]), s.z)
+pl.plot(s.qt[-1,:] / mhh.qsat(s.ph[-1,:], T[-1,:]), s.z)
+pl.ylabel('z (m)')
+pl.xlabel('RH (-)')
 
-pl.subplot(223)
-pl.plot(s. u[t,:], s. z, label='full')
-pl.plot(sc.u[t,:], sc.z, label='city')
-pl.plot(sr.u[t,:], sr.z, label='rural')
-pl.legend(frameon=False)
-
-pl.subplot(224)
-pl.plot(s. v[t,:], s. z, label='full')
-pl.plot(sc.v[t,:], sc.z, label='city')
-pl.plot(sr.v[t,:], sr.z, label='rural')
-pl.legend(frameon=False)
+# Surface fluxes
+H  = s.thlflux[:,0] * s.rhorefh[0] * mhh.cp
+LE = s.qtflux [:,0] * s.rhorefh[0] * mhh.Lv
 
 pl.figure()
-T = s.thl * exner(s.ph)
-pl.plot(s.qt[0,:] / qsat(s.ph[0,:], T[0,:]), s.z)
+pl.subplot(131)
+pl.plot(s.t/3600., H)
+pl.xlabel('time (h)')
+pl.ylabel('H (W/m2)')
+
+pl.subplot(132)
+pl.plot(s.t/3600., LE)
+pl.xlabel('time (h)')
+pl.ylabel('LE (W/m2)')
+
+pl.subplot(133)
+pl.plot(s.t/3600., LE/(H+LE))
+pl.xlabel('time (h)')
+pl.ylabel('EF (-)')

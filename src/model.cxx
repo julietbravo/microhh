@@ -88,11 +88,11 @@ Model::Model(Master *masterin, Input *inputin)
 
         immersed_boundary = new Immersed_boundary(this, input);
 
-        // Create instances of the statistics classes.
         stats  = new Stats (this, input);
         cross  = new Cross (this, input);
         dump   = new Dump  (this, input);
-        budget = new Budget(this, input);
+
+        budget = Budget::factory(input, master, grid, fields, thermo, diff, advec, force, stats);
 
         // Get the list of masks.
         // TODO Make an interface that takes this out of the main loop.
@@ -100,10 +100,12 @@ Model::Model(Master *masterin, Input *inputin)
         nerror += input->get_list(&masklist, "stats", "masklist", "");
         for (std::vector<std::string>::const_iterator it=masklist.begin(); it!=masklist.end(); ++it)
         {
-            if (*it != "wplus" &&
-                    *it != "wmin"  &&
-                    *it != "ql"    &&
-                    *it != "qlcore")
+            if (*it != "wplus"       &&
+                *it != "wmin"        &&
+                *it != "ql"          &&
+                *it != "qlcore"      &&
+                *it != "patch_high"  &&
+                *it != "patch_low")
             {
                 master->print_warning("%s is an undefined mask for conditional statistics\n", it->c_str());
             }
@@ -150,9 +152,9 @@ void Model::delete_objects()
 Model::~Model()
 {
     delete_objects();
-#ifdef USECUDA
+    #ifdef USECUDA
     cudaDeviceReset();
-#endif
+    #endif
 }
 
 // In the init stage all class individual settings are known and the dynamic arrays are allocated.
@@ -220,7 +222,7 @@ void Model::save()
 
 void Model::exec()
 {
-#ifdef USECUDA
+    #ifdef USECUDA
     // Load all the necessary data to the GPU.
     master  ->print_message("Preparing the GPU\n");
     grid    ->prepare_device();
@@ -232,7 +234,7 @@ void Model::exec()
     force   ->prepare_device();
     // Prepare pressure last, for memory check
     pres    ->prepare_device(); 
-#endif
+    #endif
 
     master->print_message("Starting time integration\n");
 
@@ -262,9 +264,13 @@ void Model::exec()
         set_time_step();
 
         // Calculate the advection tendency.
+        boundary->set_ghost_cells_w(Boundary::Conservation_type);
         advec->exec();
+        boundary->set_ghost_cells_w(Boundary::Normal_type);
+
         // Calculate the diffusion tendency.
         diff->exec();
+
         // Calculate the thermodynamics and the buoyancy tendency.
         thermo->exec();
         // Calculate the tendency due to damping in the buffer layer.
@@ -280,7 +286,9 @@ void Model::exec()
         immersed_boundary->exec();
 
         // Solve the poisson equation for pressure.
+        boundary->set_ghost_cells_w(Boundary::Conservation_type);
         pres->exec(timeloop->get_sub_time_step());
+        boundary->set_ghost_cells_w(Boundary::Normal_type);
 
         // Allow only for statistics when not in substep and not directly after restart.
         if (timeloop->is_stats_step())
@@ -312,6 +320,11 @@ void Model::exec()
                     else if (*it == "ql" || *it == "qlcore")
                     {
                         thermo->get_mask(fields->atmp["tmp3"], fields->atmp["tmp4"], &stats->masks[*it]);
+                        calc_stats(*it);
+                    }
+                    else if (*it == "patch_high" || *it == "patch_low")
+                    {
+                        boundary->get_mask(fields->atmp["tmp3"], fields->atmp["tmp4"], &stats->masks[*it]);
                         calc_stats(*it);
                     }
                 }
@@ -396,11 +409,11 @@ void Model::exec()
 
     } // End time loop.
 
-#ifdef USECUDA
+    #ifdef USECUDA
     // At the end of the run, copy the data back from the GPU.
     fields  ->backward_device();
     boundary->backward_device();
-#endif
+    #endif
 }
 
 void Model::set_time_step()
@@ -411,11 +424,12 @@ void Model::set_time_step()
 
     // Retrieve the maximum allowed time step per class.
     timeloop->set_time_step_limit();
-    timeloop->set_time_step_limit(advec->get_time_limit(timeloop->get_idt(), timeloop->get_dt()));
-    timeloop->set_time_step_limit(diff ->get_time_limit(timeloop->get_idt(), timeloop->get_dt()));
-    timeloop->set_time_step_limit(stats->get_time_limit(timeloop->get_itime()));
-    timeloop->set_time_step_limit(cross->get_time_limit(timeloop->get_itime()));
-    timeloop->set_time_step_limit(dump ->get_time_limit(timeloop->get_itime()));
+    timeloop->set_time_step_limit(advec ->get_time_limit(timeloop->get_idt(), timeloop->get_dt()));
+    timeloop->set_time_step_limit(diff  ->get_time_limit(timeloop->get_idt(), timeloop->get_dt()));
+    timeloop->set_time_step_limit(thermo->get_time_limit(timeloop->get_idt(), timeloop->get_dt()));
+    timeloop->set_time_step_limit(stats ->get_time_limit(timeloop->get_itime()));
+    timeloop->set_time_step_limit(cross ->get_time_limit(timeloop->get_itime()));
+    timeloop->set_time_step_limit(dump  ->get_time_limit(timeloop->get_itime()));
 
     // Set the time step.
     timeloop->set_time_step();
@@ -462,7 +476,11 @@ void Model::print_status()
         iter = timeloop->get_iteration();
         time = timeloop->get_time();
         dt   = timeloop->get_dt();
+
+        boundary->set_ghost_cells_w(Boundary::Conservation_type);
         div  = pres->check_divergence();
+        boundary->set_ghost_cells_w(Boundary::Normal_type);
+
         mom  = fields->check_momentum();
         tke  = fields->check_tke();
         mass = fields->check_mass();

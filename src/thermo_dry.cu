@@ -128,21 +128,21 @@ void Thermo_dry::prepare_device()
     const int nmemsize = grid->kcells*sizeof(double);
 
     // Allocate fields for Boussinesq and anelastic solver
-    cuda_safe_call(cudaMalloc(&thref_g,  nmemsize));
-    cuda_safe_call(cudaMalloc(&threfh_g, nmemsize));
-    cuda_safe_call(cudaMalloc(&pref_g,   nmemsize));
-    cuda_safe_call(cudaMalloc(&prefh_g,  nmemsize));
-    cuda_safe_call(cudaMalloc(&exner_g,  nmemsize));
-    cuda_safe_call(cudaMalloc(&exnerh_g, nmemsize));
+    cuda_safe_call(cudaMalloc(&thref_g,   nmemsize));
+    cuda_safe_call(cudaMalloc(&threfh_g,  nmemsize));
+    cuda_safe_call(cudaMalloc(&pref_g,    nmemsize));
+    cuda_safe_call(cudaMalloc(&prefh_g,   nmemsize));
+    cuda_safe_call(cudaMalloc(&exnref_g,  nmemsize));
+    cuda_safe_call(cudaMalloc(&exnrefh_g, nmemsize));
 
     // Copy fields to device
-    cuda_safe_call(cudaMemcpy(thref_g,  thref,  nmemsize, cudaMemcpyHostToDevice));
-    cuda_safe_call(cudaMemcpy(threfh_g, threfh, nmemsize, cudaMemcpyHostToDevice));
-    cuda_safe_call(cudaMemcpy(pref_g,   pref,   nmemsize, cudaMemcpyHostToDevice));
-    cuda_safe_call(cudaMemcpy(prefh_g,  prefh,  nmemsize, cudaMemcpyHostToDevice));
-    cuda_safe_call(cudaMemcpy(exner_g,  exner,  nmemsize, cudaMemcpyHostToDevice));
-    cuda_safe_call(cudaMemcpy(exnerh_g, exnerh, nmemsize, cudaMemcpyHostToDevice));
-    cuda_safe_call(cudaMemcpy(thref_g,  thref,  nmemsize, cudaMemcpyHostToDevice));
+    cuda_safe_call(cudaMemcpy(thref_g,   thref,   nmemsize, cudaMemcpyHostToDevice));
+    cuda_safe_call(cudaMemcpy(threfh_g,  threfh,  nmemsize, cudaMemcpyHostToDevice));
+    cuda_safe_call(cudaMemcpy(pref_g,    pref,    nmemsize, cudaMemcpyHostToDevice));
+    cuda_safe_call(cudaMemcpy(prefh_g,   prefh,   nmemsize, cudaMemcpyHostToDevice));
+    cuda_safe_call(cudaMemcpy(exnref_g,  exnref,  nmemsize, cudaMemcpyHostToDevice));
+    cuda_safe_call(cudaMemcpy(exnrefh_g, exnrefh, nmemsize, cudaMemcpyHostToDevice));
+    cuda_safe_call(cudaMemcpy(thref_g,   thref,   nmemsize, cudaMemcpyHostToDevice));
 }
 
 void Thermo_dry::clear_device()
@@ -151,8 +151,8 @@ void Thermo_dry::clear_device()
     cuda_safe_call(cudaFree(threfh_g));
     cuda_safe_call(cudaFree(pref_g  ));
     cuda_safe_call(cudaFree(prefh_g ));
-    cuda_safe_call(cudaFree(exner_g ));
-    cuda_safe_call(cudaFree(exnerh_g));
+    cuda_safe_call(cudaFree(exnref_g ));
+    cuda_safe_call(cudaFree(exnrefh_g));
 }
 
 #ifdef USECUDA
@@ -187,7 +187,7 @@ void Thermo_dry::exec()
 #endif
 
 #ifdef USECUDA
-void Thermo_dry::get_thermo_field(Field3d *fld, Field3d *tmp, std::string name)
+void Thermo_dry::get_thermo_field(Field3d *fld, Field3d *tmp, std::string name, bool cyclic)
 {
     const int blocki = grid->ithread_block;
     const int blockj = grid->jthread_block;
@@ -225,6 +225,9 @@ void Thermo_dry::get_thermo_field(Field3d *fld, Field3d *tmp, std::string name)
         master->print_error("get_thermo_field \"%s\" not supported\n",name.c_str());
         throw 1;
     }
+
+    if (cyclic)
+        grid->boundary_cyclic_g(&fld->data_g[offs]);
 }
 #endif
 

@@ -24,6 +24,7 @@
 #include <cstdio>
 #include <cmath>
 #include <algorithm>
+#include <sstream>
 #include "master.h"
 #include "grid.h"
 #include "fields.h"
@@ -78,10 +79,10 @@ Fields::Fields(Model *modelin, Input *inputin)
     init_momentum_field(v, vt, "v", "V velocity", "m s-1");
     init_momentum_field(w, wt, "w", "Vertical velocity", "m s-1");
     init_diagnostic_field("p", "Pressure", "Pa");
-    init_tmp_field("tmp1", "", "");
-    init_tmp_field("tmp2", "", "");
-    init_tmp_field("tmp3", "", "");
-    init_tmp_field("tmp4", "", "");
+
+    // Set a default of 4 temporary fields. Other classes can increase this number
+    // before the init phase, where they are initialized in Fields::init()
+    n_tmp_fields = 4;
 
     // Remove the data from the input that is not used in run mode, to avoid warnings.
     if (master->mode == "run")
@@ -162,6 +163,15 @@ void Fields::init()
     // allocate the diagnostic scalars
     for (FieldMap::iterator it=sd.begin(); it!=sd.end(); ++it)
         nerror += it->second->init();
+
+    // now that all classes have been able to set the minimum number of tmp fields, initialize them
+    for (int i=1; i<=n_tmp_fields; ++i)
+    {
+        // BvS: the cast to long long is unfortunately necessary for Intel compilers
+        // which don't seem to have the full c++11 implementation
+        std::string name = "tmp" + std::to_string(static_cast<long long>(i));
+        init_tmp_field(name, "", "");
+    }
 
     // allocate the tmp fields
     for (FieldMap::iterator it=atmp.begin(); it!=atmp.end(); ++it)
@@ -436,7 +446,7 @@ void Fields::exec_stats(Mask *m)
         stats->calc_flux_2nd(u->data, umodel, w->data, m->profs["w"].data,
                             m->profs["uw"].data, atmp["tmp2"]->data, uloc,
                             atmp["tmp1"]->data, stats->nmaskh);
-        if (model->diff->get_name() == "smag2")
+        if (model->diff->get_switch() == "smag2")
             stats->calc_diff_2nd(u->data, w->data, sd["evisc"]->data,
                                 m->profs["udiff"].data, grid->dzhi,
                                 u->datafluxbot, u->datafluxtop, 1., uloc,
@@ -478,7 +488,7 @@ void Fields::exec_stats(Mask *m)
         stats->calc_flux_2nd(v->data, vmodel, w->data, m->profs["w"].data,
                             m->profs["vw"].data, atmp["tmp2"]->data, vloc,
                             atmp["tmp1"]->data, stats->nmaskh);
-        if (model->diff->get_name() == "smag2")
+        if (model->diff->get_switch() == "smag2")
             stats->calc_diff_2nd(v->data, w->data, sd["evisc"]->data,
                                 m->profs["vdiff"].data, grid->dzhi,
                                 v->datafluxbot, v->datafluxtop, 1., vloc,
@@ -518,7 +528,7 @@ void Fields::exec_stats(Mask *m)
             stats->calc_flux_2nd(it->second->data, m->profs[it->first].data, w->data, m->profs["w"].data,
                                 m->profs[it->first+"w"].data, atmp["tmp1"]->data, sloc,
                                 atmp["tmp4"]->data, stats->nmaskh);
-            if (model->diff->get_name() == "smag2")
+            if (model->diff->get_switch() == "smag2")
                 stats->calc_diff_2nd(it->second->data, w->data, sd["evisc"]->data,
                                     m->profs[it->first+"diff"].data, grid->dzhi,
                                     it->second->datafluxbot, it->second->datafluxtop, diffptr->tPr, sloc,
@@ -543,12 +553,20 @@ void Fields::exec_stats(Mask *m)
     stats->calc_moment(sd["p"]->data, m->profs["p"].data, m->profs["p2"].data, 2, sloc,
                       atmp["tmp1"]->data, stats->nmask);
     if (grid->swspatialorder == "2")
+    {
+        stats->calc_grad_2nd(sd["p"]->data, m->profs["pgrad"].data, grid->dzhi, sloc,
+                             atmp["tmp4"]->data, stats->nmaskh);
         stats->calc_flux_2nd(sd["p"]->data, m->profs["p"].data, w->data, m->profs["w"].data,
                             m->profs["pw"].data, atmp["tmp1"]->data, sloc,
                             atmp["tmp4"]->data, stats->nmaskh);
+    }
     else if (grid->swspatialorder == "4")
+    {
+        stats->calc_grad_4th(sd["p"]->data, m->profs["pgrad"].data, grid->dzhi4, sloc,
+                             atmp["tmp4"]->data, stats->nmaskh);
         stats->calc_flux_4th(sd["p"]->data, w->data, m->profs["pw"].data, atmp["tmp1"]->data, sloc,
-                            atmp["tmp4"]->data, stats->nmaskh);
+                             atmp["tmp4"]->data, stats->nmaskh);
+    }
 
     // calculate the total fluxes
     stats->add_fluxes(m->profs["uflux"].data, m->profs["uw"].data, m->profs["udiff"].data);
@@ -556,13 +574,18 @@ void Fields::exec_stats(Mask *m)
     for (FieldMap::const_iterator it=sp.begin(); it!=sp.end(); ++it)
         stats->add_fluxes(m->profs[it->first+"flux"].data, m->profs[it->first+"w"].data, m->profs[it->first+"diff"].data);
 
-    if (model->diff->get_name() == "smag2")
+    if (model->diff->get_switch() == "smag2")
         stats->calc_mean(m->profs["evisc"].data, sd["evisc"]->data, NoOffset, sloc, atmp["tmp3"]->data, stats->nmask);
 }
 
 void Fields::set_calc_mean_profs(bool sw)
 {
     calc_mean_profs = sw;
+}
+
+void Fields::set_minimum_tmp_fields(int n)
+{
+    n_tmp_fields = std::max(n_tmp_fields, n);
 }
 
 void Fields::init_momentum_field(Field3d*& fld, Field3d*& fldt, std::string fldname, std::string longname, std::string unit)
@@ -682,7 +705,7 @@ int Fields::randomize(Input* inputin, std::string fld, double* restrict data)
 {
     int nerror = 0;
 
-    // set mpiid as random seed to avoid having the same field at all procs
+    // Set mpiid as random seed to avoid having the same field at all procs
     int static seed = 0;
 
     if (!seed)
@@ -692,39 +715,36 @@ int Fields::randomize(Input* inputin, std::string fld, double* restrict data)
         std::srand(seed);
     }
 
-    int ijk,jj,kk;
-    int kendrnd;
-    double rndfac;
+    const int jj = grid->icells;
+    const int kk = grid->ijcells;
 
-    jj = grid->icells;
-    kk = grid->ijcells;
-
-    // look up the specific randomizer variables
+    // Look up the specific randomizer variables.
     nerror += inputin->get_item(&rndamp, "fields", "rndamp", fld, 0.);
     nerror += inputin->get_item(&rndz  , "fields", "rndz"  , fld, 0.);
     nerror += inputin->get_item(&rndexp, "fields", "rndexp", fld, 0.);
 
-    // find the location of the randomizer height
-    kendrnd = grid->kstart;
-    while (grid->zh[kendrnd+1] < rndz)
-        ++kendrnd;
-
-    if (kendrnd > grid->kend)
+    if (rndz > grid->zsize)
     {
-        master->print_error("randomizer height rndz (%f) higher than domain top (%f)\n", grid->z[kendrnd],grid->zsize);
+        master->print_error("randomizer height rndz (%f) higher than domain top (%f)\n", rndz, grid->zsize);
         return 1;
     }
 
-    if (kendrnd == grid->kstart)
-        kendrnd = grid->kend;
+    // Find the location of the randomizer height.
+    int kendrnd = grid->kstart;
+    while (grid->z[kendrnd] < rndz)
+        ++kendrnd;
+
+    // Issue a warning if the randomization depth is larger than zero, but less than the first model level.
+    if (kendrnd == grid->kstart && rndz > 0.)
+        master->print_warning("randomization depth is less than the height of the first model level\n");
 
     for (int k=grid->kstart; k<kendrnd; ++k)
     {
-        rndfac = std::pow((rndz-grid->z [k])/rndz, rndexp);
+        const double rndfac = std::pow((rndz-grid->z [k])/rndz, rndexp);
         for (int j=grid->jstart; j<grid->jend; ++j)
             for (int i=grid->istart; i<grid->iend; ++i)
             {
-                ijk = i + j*jj + k*kk;
+                const int ijk = i + j*jj + k*kk;
                 data[ijk] = rndfac * rndamp * ((double) std::rand() / (double) RAND_MAX - 0.5);
             }
     }
@@ -825,7 +845,7 @@ void Fields::create_stats()
     int nerror = 0;
 
     // add the profiles to te statistics
-    if (stats->getSwitch() == "1")
+    if (stats->get_switch() == "1")
     {
         // add variables to the statistics
         stats->add_prof(u->name, u->longname, u->unit, "z" );
@@ -839,9 +859,10 @@ void Fields::create_stats()
         std::string sn("2");
         stats->add_prof(sd["p"]->name + sn,"Moment "+ sn + " of the " + sd["p"]->longname,"(" + sd["p"]->unit + ")"+sn, "z" );
         stats->add_prof(sd["p"]->name +"w", "Turbulent flux of the " + sd["p"]->longname, sd["p"]->unit + " m s-1", "zh");
+        stats->add_prof(sd["p"]->name +"grad", "Gradient of the " + sd["p"]->longname, sd["p"]->unit + " m-1", "zh");
 
         // CvH, shouldn't this call be in the diffusion class?
-        if (model->diff->get_name() == "smag2")
+        if (model->diff->get_switch() == "smag2")
             stats->add_prof(sd["evisc"]->name, sd["evisc"]->longname, sd["evisc"]->unit, "z");
 
         // moments

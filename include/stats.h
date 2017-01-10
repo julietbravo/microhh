@@ -23,7 +23,9 @@
 #ifndef STATS
 #define STATS
 
-#include <netcdfcpp.h>
+//#include <netcdfcpp.h>
+#include <netcdf>
+using namespace netCDF;
 
 class Master;
 class Model;
@@ -33,14 +35,14 @@ class Fields;
 // struct for profiles
 struct Prof_var
 {
-    NcVar*  ncvar;
+    NcVar ncvar;
     double* data;
 };
 
 // struct for time series
 struct Time_series_var
 {
-    NcVar* ncvar;
+    NcVar ncvar;
     double data;
 };
 
@@ -53,11 +55,11 @@ struct Mask
 {
     std::string name;
     NcFile* dataFile;
-    NcDim* z_dim;
-    NcDim* zh_dim;
-    NcDim* t_dim;
-    NcVar* iter_var;
-    NcVar* t_var;
+    NcDim z_dim;
+    NcDim zh_dim;
+    NcDim t_dim;
+    NcVar iter_var;
+    NcVar t_var;
     Prof_map profs;
     Time_series_map tseries;
 };
@@ -77,7 +79,7 @@ class Stats
         void get_mask(Field3d*, Field3d*, Mask*);
         void exec(int, double, unsigned long);
         bool doStats();
-        std::string getSwitch();
+        std::string get_switch();
 
         // Container for all stats, masks as uppermost in hierarchy
         Mask_map masks;

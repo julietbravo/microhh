@@ -112,7 +112,7 @@ class Force
 
         void calc_canopy_drag(double* const, double* const, double* const,
                               const double* const, const double* const, const double* const,
-                              const double* const, const double* const, const double* const, const double, const double, const double);
+                              const double* const, const double* const, const double* const, const double, const double, const double, const double);
 
         // GPU functions and variables
         double* ug_g;  ///< Pointer to GPU array u-component geostrophic wind.

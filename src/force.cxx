@@ -23,7 +23,7 @@
 #include <cstdio>
 #include <algorithm>
 #include <iostream>
-#include <math.h>
+#include <cmath>
 #include "master.h"
 #include "grid.h"
 #include "fields.h"
@@ -247,9 +247,11 @@ void Force::exec(double dt)
         bool discrete_mask = false;
         model->boundary->get_surface_mask(fields->atmp["tmp1"], discrete_mask);
 
+        const double subdt = model->timeloop->get_sub_time_step();
+
         calc_canopy_drag(fields->ut->data, fields->vt->data, fields->wt->data,
                          fields->u->data,  fields->v->data,  fields->w->data,
-                         acp, acph, fields->atmp["tmp1"]->databot, Cd, grid->utrans, grid->vtrans);
+                         acp, acph, fields->atmp["tmp1"]->databot, Cd, grid->utrans, grid->vtrans, subdt);
     }
 }
 #endif
@@ -473,7 +475,7 @@ void Force::calc_canopy_drag(double* const restrict ut, double* const restrict v
                              const double* const restrict u, const double* const restrict v, const double* const restrict w,
                              const double* const restrict cdens, const double* const restrict cdensh,
                              const double* const restrict mask,
-                             const double Cd, const double ugrid, const double vgrid)
+                             const double Cd, const double ugrid, const double vgrid, const double dt)
 {
     const int ii = 1;
     const int jj = grid->icells;
@@ -499,8 +501,10 @@ void Force::calc_canopy_drag(double* const restrict ut, double* const restrict v
                 const double v_at_u = 0.25 * (v[ijk] + v[ijk+jj] + v[ijk+jj-ii] + v[ijk-ii]) + vgrid;
                 const double w_at_u = 0.25 * (w[ijk] + w[ijk+kk] + w[ijk+kk-ii] + w[ijk-ii]);
                 const double u_tot  = pow(pow(u[ijk]+ugrid, 2) + pow(v_at_u, 2) + pow(w_at_u, 2), 0.5);
+                const double ut_tmp = -mask[ij] * Cd * cdens[k] * u_tot * (u[ijk]+ugrid);
 
-                ut[ijk] -= mask[ij] * Cd * cdens[k] * u_tot * (u[ijk]+ugrid);
+                // Make sure that the tendency due to drag cannot change the sign after integration:
+                ut[ijk] += copysign(1., ut_tmp) * std::min(std::abs((u[ijk]+ugrid)/dt), std::abs(ut_tmp));
             }
 
     for (int k=grid->kstart; k<kend_canopy; ++k)
@@ -515,8 +519,10 @@ void Force::calc_canopy_drag(double* const restrict ut, double* const restrict v
                 const double u_at_v = 0.25 * (u[ijk] + u[ijk+ii] + u[ijk+ii-jj] + u[ijk-jj]) + ugrid;
                 const double w_at_v = 0.25 * (w[ijk] + w[ijk+kk] + w[ijk+kk-jj] + w[ijk-jj]);
                 const double u_tot  = pow(pow(v[ijk]+vgrid, 2) + pow(u_at_v, 2) + pow(w_at_v, 2), 0.5);
+                const double vt_tmp = -mask[ij] * Cd * cdens[k] * u_tot * (v[ijk]+vgrid);
 
-                vt[ijk] -= mask[ij] * Cd * cdens[k] * u_tot * (v[ijk]+vgrid);
+                // Make sure that the tendency due to drag cannot change the sign after integration:
+                vt[ijk] += copysign(1., vt_tmp) * std::min(std::abs((v[ijk]+vgrid)/dt), std::abs(vt_tmp));
             }
     }
 
@@ -541,10 +547,10 @@ void Force::calc_canopy_drag(double* const restrict ut, double* const restrict v
                 const double u_at_w = 0.25 * (u[ijk] + u[ijk+ii] + u[ijk+ii-kk] + u[ijk-kk]) + ugrid;
                 const double v_at_w = 0.25 * (v[ijk] + v[ijk+jj] + v[ijk+jj-kk] + v[ijk-kk]) + vgrid;
                 const double u_tot  = pow(pow(u_at_w, 2) + pow(v_at_w, 2) + pow(w[ijk], 2), 0.5);
+                const double wt_tmp = -mask[ij] * Cd * cdensh[k] * u_tot * (w[ijk]);
 
-                wt[ijk] -= mask[ij] * Cd * cdensh[k] * u_tot * (w[ijk]);
+                // Make sure that the tendency due to drag cannot change the sign after integration:
+                wt[ijk] += copysign(1., wt_tmp) * std::min(std::abs((w[ijk])/dt), std::abs(wt_tmp));
             }
     }
-
-
 }

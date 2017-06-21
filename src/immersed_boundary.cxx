@@ -21,6 +21,7 @@
  */
 
 #include <cstdio>
+#include <iostream>
 #include "master.h"
 #include "grid.h"
 #include "fields.h"
@@ -76,10 +77,10 @@ namespace
                         u [ijk] = 0.;
                     }
                     // East face.
-                    if (ib[ij] & 2)
+                    if (ib[ij-ii] & 2)
                     {
-                        ut[ijk+ii] = 0.;
-                        u [ijk+ii] = 0.;
+                        ut[ijk] = 0.;
+                        u [ijk] = 0.;
                     }
                     // South face.
                     if (ib[ij] & 4)
@@ -88,10 +89,10 @@ namespace
                         v [ijk] = 0.;
                     }
                     // North face.
-                    if (ib[ij] & 8)
+                    if (ib[ij-jj] & 8)
                     {
-                        vt[ijk+jj] = 0.;
-                        v [ijk+jj] = 0.;
+                        vt[ijk] = 0.;
+                        v [ijk] = 0.;
                     }
 
                     // SET NO SLIP.
@@ -356,7 +357,6 @@ void Immersed_boundary::create(Input& input, Fields& fields)
 
     std::vector<int> ib_pattern_tmp(grid.ijcells, 0);
     
-
     for (int n=0; n<nblocks; ++n)
     {
         for (int m=0; m<mblocks; ++m)
@@ -368,6 +368,7 @@ void Immersed_boundary::create(Input& input, Fields& fields)
             const int iblock_end = m*istep + istep/2 + iblock/2;
             const int jblock_start = n*jstep + jstep/2 - jblock/2;
             const int jblock_end = n*jstep + jstep/2 + jblock/2;
+
             // const int iblock_start = m*istep;
             // const int iblock_end = iblock_start + iblock;
             // const int jblock_start = n*jstep;
@@ -438,6 +439,8 @@ void Immersed_boundary::create(Input& input, Fields& fields)
                 ib_pattern[ij] |= 16;
         }
     }
+
+    grid.boundary_cyclic_2d(ib_pattern.data());
 }
 
 void Immersed_boundary::exec(Fields& fields)
@@ -457,7 +460,8 @@ void Immersed_boundary::exec(Fields& fields)
                        grid.kstart, grid.kstart+kblock,
                        grid.icells, grid.ijcells);
 
-
+    grid.boundary_cyclic(fields.u ->data);
+    grid.boundary_cyclic(fields.v ->data);
 
     for (auto& s : fields.st)
     {

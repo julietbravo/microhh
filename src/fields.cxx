@@ -34,7 +34,28 @@
 #include "stats.h"
 #include "cross.h"
 #include "dump.h"
+#include "timeloop.h"
 #include "diff_smag2.h"
+
+namespace
+{
+    int find_nearest_index(const double* const restrict array, const double value,
+                           const int start, const int end)
+    {
+        double min_diff = 1e12;
+        int index = 0;
+
+        for (int i=start; i<end; ++i)
+        {
+            if (std::abs(array[i]-value) < min_diff)
+            {
+                min_diff = std::abs(array[i]-value);
+                index = i;
+            }
+        }
+        return index;
+    }
+}
 
 Fields::Fields(Model *modelin, Input *inputin)
 {
@@ -96,6 +117,17 @@ Fields::Fields(Model *modelin, Input *inputin)
         inputin->flag_as_used("fields", "vortexamp"  );
         inputin->flag_as_used("fields", "vortexaxis" );
     }
+
+    // read the scalar release settings
+    nerror += inputin->get_item(&point_source, "fields", "point_source", "");
+
+    nerror += inputin->get_list(&point_source_x, "fields", "point_source_x", "");
+    nerror += inputin->get_list(&point_source_y, "fields", "point_source_y", "");
+    nerror += inputin->get_list(&point_source_z, "fields", "point_source_z", "");
+    nerror += inputin->get_list(&point_source_F, "fields", "point_source_F", "");
+
+    nerror += inputin->get_list(&point_source_starttime, "fields", "point_source_starttime", "");
+    nerror += inputin->get_list(&point_source_endtime,   "fields", "point_source_endtime",   "");
 }
 
 Fields::~Fields()
@@ -239,6 +271,7 @@ void Fields::init()
         else
             ++dumpvar;
     }
+
 }
 
 void Fields::check_added_cross(std::string var, std::string type, std::vector<std::string> *crosslist, std::vector<std::string> *typelist)
@@ -260,12 +293,15 @@ void Fields::check_added_cross(std::string var, std::string type, std::vector<st
 #ifndef USECUDA
 void Fields::exec()
 {
-    // calculate the means for the prognostic scalars
+    // Calculate the means for the prognostic scalars.
     if (calc_mean_profs)
     {
         for (FieldMap::iterator it=ap.begin(); it!=ap.end(); ++it)
             grid->calc_mean(it->second->datamean, it->second->data, grid->kcells);
     }
+
+    // Add scalar point releases
+    exec_point_source(); 
 }
 #endif
 
@@ -663,6 +699,46 @@ void Fields::init_tmp_field(std::string fldname,std::string longname, std::strin
     atmp[fldname] = new Field3d(grid, master, fldname, longname, unit);
 }
 
+
+void Fields::exec_point_source()
+{   
+    // This is really ugly, but where to init this? At Fields->init stage, grid is undefined,
+    // Fields->create is only executed in model init phase, not run phase....
+    if (!point_source_initialized)
+    {
+        // Find nearest indices of the scalar releases.
+        for (int i=0; i<point_source_x.size(); ++i)
+        {
+            // Check if point source is within (MPI) domain.
+            if ((point_source_x[i] >= grid->x[grid->istart]) && (point_source_x[i] <= grid->x[grid->iend-1]) &&
+                (point_source_y[i] >= grid->y[grid->jstart]) && (point_source_y[i] <= grid->y[grid->jend-1]))
+            {
+                // Find nearest grid point.
+                const int ii = find_nearest_index(grid->x, point_source_x[i], grid->istart, grid->iend); 
+                const int jj = find_nearest_index(grid->y, point_source_y[i], grid->jstart, grid->jend); 
+                const int kk = find_nearest_index(grid->z, point_source_z[i], grid->kstart, grid->kend); 
+
+                // Add to list of point source locations.
+                point_source_i.push_back(ii);
+                point_source_j.push_back(jj);
+                point_source_k.push_back(kk);
+            }
+        }
+        point_source_initialized = true;
+    }
+
+    const double time = model->timeloop->get_time();
+
+    for (int n=0; n<point_source_i.size(); ++n)
+    {
+        if ((time >= point_source_starttime[n]) && (time <= point_source_endtime[n]))
+        {
+            const int ijk = point_source_i[n] + point_source_j[n]*grid->icells + point_source_k[n]*grid->ijcells;
+            at[point_source]->data[ijk] += point_source_F[n];
+        }
+    }
+}
+
 void Fields::create(Input *inputin)
 {
     int nerror = 0;
@@ -696,6 +772,8 @@ void Fields::create(Input *inputin)
         w->data[lbot+l] = 0.;
         w->data[ltop+l] = 0.;
     }
+
+
 
     if (nerror)
         throw 1;

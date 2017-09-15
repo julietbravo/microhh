@@ -710,8 +710,8 @@ void Fields::exec_point_source()
         for (int i=0; i<point_source_x.size(); ++i)
         {
             // Check if point source is within (MPI) domain.
-            if ((point_source_x[i] >= grid->x[grid->istart]) && (point_source_x[i] <= grid->x[grid->iend-1]) &&
-                (point_source_y[i] >= grid->y[grid->jstart]) && (point_source_y[i] <= grid->y[grid->jend-1]))
+            if ((point_source_x[i] > grid->xh[grid->istart]) && (point_source_x[i] <= grid->xh[grid->iend]) &&
+                (point_source_y[i] > grid->yh[grid->jstart]) && (point_source_y[i] <= grid->yh[grid->jend]))
             {
                 // Find nearest grid point.
                 const int ii = find_nearest_index(grid->x, point_source_x[i], grid->istart, grid->iend); 
@@ -724,10 +724,12 @@ void Fields::exec_point_source()
                 point_source_k.push_back(kk);
             }
         }
+
         point_source_initialized = true;
     }
 
     const double time = model->timeloop->get_time();
+
 
     for (int n=0; n<point_source_i.size(); ++n)
     {

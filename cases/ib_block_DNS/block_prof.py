@@ -59,7 +59,7 @@ if __name__ == "__main__":
         #grid = Grid(96, 70, 5, 0.02, 0.06)
         #grid = Grid(96, 40, 5, 0.01, 0.04)
         grid = Grid(120, 80, 5, 0.017, 0.04)
-        grid.plot()
+        #grid = Grid(192, 130, 10, 0.01, 0.027)
 
         # Write `zsize` and `ktot` back to .ini file
         replace_namelist_value('zsize', grid.zsize)

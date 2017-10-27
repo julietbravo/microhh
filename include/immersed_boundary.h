@@ -133,6 +133,13 @@ class Immersed_boundary
         // User elevation map (DEM)
         std::vector<double> dem;
 
+        // TMP BvS
+        double x0_block;
+        double x1_block;
+        double y0_block;
+        double y1_block;
+        double z1_block;
+
         // Boundary conditions
         struct Field3dBc
         {

@@ -164,6 +164,53 @@ namespace
 
         return z;
     }
+
+    void calc_mask_block(double* const restrict mask, double* const restrict maskh, double* const restrict maskbot,
+                         int* const restrict nmask, int* const restrict nmaskh, int* const restrict nmaskbot,
+                         const double* const restrict x, const double* const restrict y,
+                         const double* const restrict z, const double* const restrict zh,
+                         const double x0, const double x1, const double y0, const double y1, const double z1,
+                         const int istart, const int iend,
+                         const int jstart, const int jend,
+                         const int kstart, const int kend,
+                         const int jj, const int kk)
+    {
+        const int ii = 1;
+
+        // Set the mask for outside (1) or inside (0) IB
+        for (int k=kstart; k<kend; ++k)
+        {
+            nmask[k]  = 0;
+            nmaskh[k] = 0;
+            for (int j=jstart; j<jend; ++j)
+                #pragma ivdep
+                for (int i=istart; i<iend; ++i)
+                {
+                    const int ijk = i + j*jj + k*kk;
+                    const int ij  = i + j*jj;
+
+                    const int is_not_ib   = !(x[i] > x0 && x[i] < x1 && y[j] > y0 && y[j] < y1 && z [k] < z1);
+                    const int is_not_ib_h = !(x[i] > x0 && x[i] < x1 && y[j] > y0 && y[j] < y1 && zh[k] < z1);
+
+                    mask[ijk]  = static_cast<double>(is_not_ib);
+                    maskh[ijk] = static_cast<double>(is_not_ib_h);
+
+                    nmask[k]  += is_not_ib;
+                    nmaskh[k] += is_not_ib_h;
+                }
+        }
+
+        // Mask for surface projected quantities
+        for (int j=jstart; j<jend; j++)
+            #pragma ivdep
+            for (int i=istart; i<iend; i++)
+            {
+                const int ij  = i + j*jj;
+                const int ijk = i + j*jj + kstart*kk;
+                maskbot[ij] = maskh[ijk];
+            }
+
+    }
 }
 
 Immersed_boundary::Immersed_boundary(Model* modelin, Input* inputin)
@@ -181,7 +228,16 @@ Immersed_boundary::Immersed_boundary(Model* modelin, Input* inputin)
     if (sw_ib == "0")
         ib_type = None_type;
     else if (sw_ib == "poly")
+    {
         ib_type = Poly_type;
+
+        // TMP BvS
+        nerror += inputin->get_item(&x0_block, "IB", "x0_block", "", 0);
+        nerror += inputin->get_item(&x1_block, "IB", "x1_block", "", 0);
+        nerror += inputin->get_item(&y0_block, "IB", "y0_block", "", 0);
+        nerror += inputin->get_item(&y1_block, "IB", "y1_block", "", 0);
+        nerror += inputin->get_item(&z1_block, "IB", "z1_block", "", 0);
+    }
     else if (sw_ib == "dem")
         ib_type = Dem_type;
     else if (sw_ib == "sine")
@@ -764,13 +820,29 @@ void Immersed_boundary::calc_mask(double* const restrict mask, double* const res
 void Immersed_boundary::get_mask(Field3d *mfield, Field3d *mfieldh)
 {
     // Mask is currently only implemented for boundaries set up from f(x,y)
-    if ((ib_type != Sine_type) && (ib_type != Gaus_type) && (ib_type != Agnesi_type) && (ib_type != Flat_type) && (ib_type != Dem_type))
+    //if ((ib_type != Sine_type) && (ib_type != Gaus_type) && (ib_type != Agnesi_type) && (ib_type != Flat_type) && (ib_type != Dem_type))
+    //{
+    //    model->master->print_error("Get_mask() not yet implemented for chosen IB type\n");
+    //    throw 1;
+    //}
+
+    // TMP BVS
+    if (ib_type == Poly_type)
     {
-        model->master->print_error("Get_mask() not yet implemented for chosen IB type\n");
-        throw 1;
+        // Specific for u-location, so use xh
+        calc_mask_block(mfield->data, mfieldh->data, mfieldh->databot, stats->nmask, stats->nmaskh, &stats->nmaskbot, grid->xh, grid->y, grid->z, grid->zh,
+                        x0_block, x1_block, y0_block, y1_block, z1_block, grid->istart, grid->iend, grid->jstart, grid->jend, grid->kstart, grid->kend, grid->icells, grid->ijcells);
+
+        grid->boundary_cyclic(mfield->data);
+        grid->boundary_cyclic(mfieldh->data);
+        grid->boundary_cyclic_2d(mfieldh->databot);
+
+        model->master->sum(stats->nmask , grid->kcells);
+        model->master->sum(stats->nmaskh, grid->kcells);
+        stats->nmaskbot = stats->nmaskh[grid->kstart];
     }
 
-    if (ib_type == Dem_type)
+    else if (ib_type == Dem_type)
         calc_mask<Dem_type, 1>(mfield->data, mfieldh->data, mfieldh->databot, stats->nmask, stats->nmaskh, &stats->nmaskbot, grid->x, grid->y, grid->z, grid->zh);
     else if (ib_type == Flat_type)
         calc_mask<Flat_type, 1>(mfield->data, mfieldh->data, mfieldh->databot, stats->nmask, stats->nmaskh, &stats->nmaskbot, grid->x, grid->y, grid->z, grid->zh);

@@ -355,18 +355,19 @@ void Immersed_boundary::create()
         std::string file_name;
 
         file_name = "u.ib_input";
-        read_ghost_cells(ghost_cells_u, file_name, grid->xh, grid->y, grid->z);
+        read_ghost_cells(ghost_cells_u, file_name, grid->xh, grid->y, grid->z, Dirichlet_type);
 
         file_name = "v.ib_input";
-        read_ghost_cells(ghost_cells_v, file_name, grid->x, grid->yh, grid->z);
+        read_ghost_cells(ghost_cells_v, file_name, grid->x, grid->yh, grid->z, Dirichlet_type);
 
         file_name = "w.ib_input";
-        read_ghost_cells(ghost_cells_w, file_name, grid->x, grid->y, grid->zh);
+        read_ghost_cells(ghost_cells_w, file_name, grid->x, grid->y, grid->zh, Dirichlet_type);
 
         if (fields->sp.size() > 0)
         {
+            Boundary_type bc = sbc[fields->sp.begin()->first]->bcbot;
             file_name = "s.ib_input";
-            read_ghost_cells(ghost_cells_s, file_name, grid->x, grid->y, grid->z);
+            read_ghost_cells(ghost_cells_s, file_name, grid->x, grid->y, grid->z, bc);
         }
     }
     else
@@ -630,7 +631,8 @@ void Immersed_boundary::find_interpolation_points(Ghost_cell& ghost_cell,
 
 
 void Immersed_boundary::read_ghost_cells(std::vector<Ghost_cell> &ghost_cells, std::string file_name,
-                                         const double* const restrict x, const double* const restrict y, const double* const restrict z)
+                                         const double* const restrict x, const double* const restrict y, const double* const restrict z,
+                                         Boundary_type bc)
 {
     const int ii = 1;
     const int jj = grid->icells;
@@ -639,7 +641,7 @@ void Immersed_boundary::read_ghost_cells(std::vector<Ghost_cell> &ghost_cells, s
     bool is_optional = false;
     Data_map input;
 
-    // Read the input data into a std::map< header_name, std::vecor<data> >
+    // Read the input data into a std::map< header_name, std::vector<data> >
     const int nerror = model->input->read_data_file(&input, file_name, is_optional);
     if (nerror > 0)
         throw 1;
@@ -679,7 +681,7 @@ void Immersed_boundary::read_ghost_cells(std::vector<Ghost_cell> &ghost_cells, s
             tmp_ghost.zI = 2*tmp_ghost.zB - z[k];
 
             // Neighbours
-            const int n_neighbours = input["nn"][n];
+            const int n_neighbours = (bc == Immersed_boundary::Boundary_type::Dirichlet_type) ? n_idw-1 : n_idw;
 
             for (int nn=0; nn<n_neighbours; ++nn)
             {
@@ -897,14 +899,13 @@ void Immersed_boundary::zero_ib_tendency(double* const restrict tend, double* co
             }
 }
 
-void Immersed_boundary::exec()
+void Immersed_boundary::exec_momentum()
 {
     if (ib_type == None_type)
         return;
 
     const int ii = 1;
     const double no_slip = 0.;
-    const double fixed_visc = visc_wall;
 
     // Set the immersed boundary ghost cells to enforce a no-slip BC for the velocity components
     set_ghost_cells(ghost_cells_u, fields->u->data, no_slip, grid->xh, grid->y,  grid->z,  n_idw, ii, grid->icells, grid->ijcells, Dirichlet_type, fields->visc);
@@ -914,17 +915,6 @@ void Immersed_boundary::exec()
     grid->boundary_cyclic(fields->u->data);
     grid->boundary_cyclic(fields->v->data);
     grid->boundary_cyclic(fields->w->data);
-
-    if (model->diff->get_switch() == "smag2")
-        set_ghost_cells(ghost_cells_s, fields->sd["evisc"]->data, visc_wall, grid->x, grid->y,  grid->z,  n_idw, ii, grid->icells, grid->ijcells, Dirichlet_type, fields->visc);
-
-    // Set the ghost cells for scalars, depending on their BC
-    for (FieldMap::const_iterator it=fields->sp.begin(); it!=fields->sp.end(); ++it)
-    {
-        set_ghost_cells(ghost_cells_s, fields->sp[it->first]->data, sbc[it->first]->bot,
-                        grid->x, grid->y, grid->z, n_idw, ii, grid->icells, grid->ijcells, sbc[it->first]->bcbot, fields->sp[it->first]->visc, true);
-        grid->boundary_cyclic(fields->ap[it->first]->data);
-    }
 
     // Zero ghost cell tendencies
     if (zero_ghost_tend)
@@ -937,6 +927,37 @@ void Immersed_boundary::exec()
         grid->boundary_cyclic(fields->at["v"]->data);
         grid->boundary_cyclic(fields->at["w"]->data);
 
+        for (FieldMap::const_iterator it=fields->sp.begin(); it!=fields->sp.end(); ++it)
+        {
+            zero_ghost_tendency(ghost_cells_s, fields->st[it->first]->data);
+            grid->boundary_cyclic(fields->at[it->first]->data);
+        }
+    }
+}
+
+void Immersed_boundary::exec_scalars()
+{
+    if (ib_type == None_type)
+        return;
+
+    const int ii = 1;
+    const double fixed_visc = visc_wall;
+
+    // For LES, prescribe a fixed viscosity at the IB wall
+    if (model->diff->get_switch() == "smag2")
+        set_ghost_cells(ghost_cells_s, fields->sd["evisc"]->data, visc_wall, grid->x, grid->y,  grid->z,  n_idw, ii, grid->icells, grid->ijcells, Dirichlet_type, fields->visc);
+
+    // Set the ghost cells for scalars, depending on their BC
+    for (FieldMap::const_iterator it=fields->sp.begin(); it!=fields->sp.end(); ++it)
+    {
+        set_ghost_cells(ghost_cells_s, fields->sp[it->first]->data, sbc[it->first]->bot,
+                        grid->x, grid->y, grid->z, n_idw, ii, grid->icells, grid->ijcells, sbc[it->first]->bcbot, fields->sp[it->first]->visc, false);
+        grid->boundary_cyclic(fields->ap[it->first]->data);
+    }
+
+    // Zero ghost cell tendencies
+    if (zero_ghost_tend)
+    {
         for (FieldMap::const_iterator it=fields->sp.begin(); it!=fields->sp.end(); ++it)
         {
             zero_ghost_tendency(ghost_cells_s, fields->st[it->first]->data);

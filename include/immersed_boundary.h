@@ -77,7 +77,8 @@ class Immersed_boundary
 
         void init();
         void create();
-        void exec();                   ///< Set the immersed boundary ghost cells
+        void exec_momentum();   ///< Set the immersed boundary ghost cells (velocity components)
+        void exec_scalars();    ///< Set the immersed boundary ghost cells (scalars)
         void exec_stats(Mask*); ///< Execute statistics of immersed boundaries
         void get_mask(Field3d*, Field3d*);
         IB_type get_switch() { return ib_type; }
@@ -94,7 +95,7 @@ class Immersed_boundary
         std::vector<Ghost_cell> ghost_cells_w;  ///< Vector holding info on all the ghost cells within the boundary
         std::vector<Ghost_cell> ghost_cells_s;  ///< Vector holding info on all the ghost cells within the boundary
 
-        void read_ghost_cells(std::vector<Ghost_cell>&, std::string, const double*, const double*, const double*); ///< Function to read user input IB
+        void read_ghost_cells(std::vector<Ghost_cell>&, std::string, const double*, const double*, const double*, Boundary_type); ///< Function to read user input IB
 
         template <IB_type, int> void find_ghost_cells(std::vector<Ghost_cell>&, const double*, const double*, const double*, const int, Boundary_type); ///< Function which determines the ghost cells
         template <IB_type, int> double boundary_function(const double, const double); ///< Function describing boundary

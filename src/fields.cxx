@@ -730,13 +730,13 @@ void Fields::exec_point_source()
 
     const double time = model->timeloop->get_time();
 
-
     for (int n=0; n<point_source_i.size(); ++n)
     {
         if ((time >= point_source_starttime[n]) && (time <= point_source_endtime[n]))
         {
             const int ijk = point_source_i[n] + point_source_j[n]*grid->icells + point_source_k[n]*grid->ijcells;
-            at[point_source]->data[ijk] += point_source_F[n];
+            const double volume = grid->dx * grid->dy * grid->dz[point_source_k[n]];
+            at[point_source]->data[ijk] += point_source_F[n] / volume;
         }
     }
 }

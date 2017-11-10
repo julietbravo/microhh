@@ -159,6 +159,8 @@ class Fields
         int randomize    (Input*, std::string, double*);
         int add_vortex_pair(Input*);
 
+        void exec_point_source();
+
         // statistics
         double* umodel;
         double* vmodel;
@@ -170,5 +172,20 @@ class Fields
          */
         void forward_field3d_device(Field3d *);  ///< Copy of a complete Field3d instance from host to device
         void backward_field3d_device(Field3d *); ///< Copy of a complete Field3d instance from device to host
+
+
+        // This should really be implemented in a separate module.....
+        bool point_source_initialized = false;
+        std::string point_source;
+        std::vector<double> point_source_x;
+        std::vector<double> point_source_y;
+        std::vector<double> point_source_z;
+        std::vector<double> point_source_F;
+        std::vector<double> point_source_starttime;
+        std::vector<double> point_source_endtime;
+
+        std::vector<int> point_source_i;
+        std::vector<int> point_source_j;
+        std::vector<int> point_source_k;
 };
 #endif

@@ -665,7 +665,6 @@ void Immersed_boundary::zero_ib_tendency(double* const restrict tend, double* co
             tmp2d[ij] = ib_height(x[i], y[j]);
         }
 
-
     for (int k=grid->kstart; k<grid->kend; ++k)
         for (int j=grid->jstart; j<grid->jend; ++j)
             #pragma ivdep

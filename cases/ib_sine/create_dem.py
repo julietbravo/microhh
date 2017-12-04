@@ -10,7 +10,7 @@ wavelength = 0.0508
 z_offset   = 0.002
 
 # Example of adding roughness
-add_cubes    = True
+add_cubes    = False
 patch_size   = wavelength / 5.
 block_size   = patch_size / 3.
 block_height = 0.5*amplitude

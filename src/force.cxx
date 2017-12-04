@@ -207,8 +207,8 @@ void Force::exec(double dt)
 {
     if (swlspres == "uflux")
     {
-        if ((model->immersed_boundary->get_switch() != Immersed_boundary::None_type) &&
-            (model->immersed_boundary->get_switch() != Immersed_boundary::Poly_type))
+        // For the DEM type immersed boundaries, exclude the grid points inside the IB
+        if (model->immersed_boundary->get_switch() == Immersed_boundary::Dem_type)
         {
             model->immersed_boundary->get_mask(fields->atmp["tmp1"], fields->atmp["tmp2"]);
             fbody_u = calc_flux(fields->ut->data, fields->u->data, grid->dz, dt, fields->atmp["tmp1"]->data);
@@ -220,7 +220,6 @@ void Force::exec(double dt)
             add_flux(fields->ut->data, fbody_u);
         }
     }
-
 
     else if (swlspres == "geo")
     {

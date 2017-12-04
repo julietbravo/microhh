@@ -3,3 +3,5 @@ Case with flow over sinusoidal hills, from (amongst others):
  - Calhoun and Street (2001): Turbulent flow over a wavy surface: Neutral case (*model study*)
 
 The measurements/statistics from Hudson et al. are included in the `reference_data` subdirectory. 
+
+To run the case, first create the immersed boundary input (dem.0000000) with the create_dem.py script

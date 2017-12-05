@@ -21,6 +21,9 @@ xsave      = [0,nx]
 zsave      = [0,nz]
 endian     = 'little'
 savetype   = 'float'
+
+mask_ib    = True           # Option to mask the immersed boundary in cross-section (only for DEM)
+dem_file   = 'dem.0000000'
 # End settings ---
 
 # Set the correct string for the endianness
@@ -69,6 +72,49 @@ raw = fin.read(nz*8)
 zh  = np.array(st.unpack('{0}{1}d'.format(en, nz), raw))
 fin.close()
 
+if (mask_ib):
+    # Read the DEM file (at full x and y location).
+    demxy = mht.read_restart_file(dem_file, nl['grid']['itot'], nl['grid']['jtot'], 1)
+
+    # Interpolate DEM to half x location
+    tmp   = np.insert(demxy, 0, demxy[:,-1], axis=1)
+    demxh = 0.5*(tmp[:,1:] + tmp[:,:-1])
+
+    # Dictionary with variables as keys, containing list of masks for each slice.
+    masks = {}
+
+    # Process all variables.
+    for crossname in variables:
+        if indexes == -1:
+            indexes_local = mht.get_cross_indices(crossname, 'xz')
+        else:
+            indexes_local = indexes
+
+        # Select the correct location (full/half) on the grid.
+        if crossname == 'u':
+            dem = demxh
+        else:
+            dem = demxy
+
+        if crossname == 'w':
+            zvar = zh
+        else:
+            zvar = z
+
+        # Process all indices.
+        var_mask = []
+        for index in indexes_local:
+            mask = np.zeros((nz, nx), dtype=np.bool)
+
+            for i in range(nx):
+                kstart = np.where(zvar > dem[index,i])[0][0]
+                mask[:kstart, i] = True
+
+            var_mask.append(mask)
+
+        masks[crossname] = var_mask
+
+
 # Loop over the different variables
 for crossname in variables:
     if indexes == -1:
@@ -92,21 +138,21 @@ for crossname in variables:
     dim_y  = crossfile.createDimension(locy,   np.size(indexes_local))
     dim_z  = crossfile.createDimension(locz,   nzsave)
     dim_t  = crossfile.createDimension('time', None)
-    
+
     # create dimension variables
     var_t  = crossfile.createVariable('time', sa, ('time',))
     var_x  = crossfile.createVariable(locx,   sa, (locx,  ))
     var_y  = crossfile.createVariable(locy,   sa, (locy,  ))
     var_z  = crossfile.createVariable(locz,   sa, (locz,  ))
     var_t.units = "Seconds since start of experiment"
-    
+
     # save the data
     var_x[:]  = x[slicex] if locx=='x' else xh[slicex]
     var_z[:]  = z[slicez] if locz=='z' else zh[slicez]
-    
+
     var_s = crossfile.createVariable(crossname, sa, ('time', locz, locx, locy,))
-    
-    stop = False 
+
+    stop = False
     for t in range(niter):
         if (stop):
             break
@@ -122,19 +168,24 @@ for crossname in variables:
                 crossfile.sync()
                 stop = True
                 break
-    
+
             print("Processing %8s, time=%7i, index=%4i"%(crossname, otime, index))
 
             var_t[t] = otime * 10**iotimeprec
-            var_y[i] = y[index] if locy=='y' else yh[index] 
-    
+            var_y[i] = y[index] if locy=='y' else yh[index]
+
             raw = fin.read(nx*nz*8)
             tmp = np.array(st.unpack('{0}{1}d'.format(en, nx*nz), raw))
             del(raw)
             s = tmp.reshape((nz, nx))
             del(tmp)
+
+            if (mask_ib):
+                s = np.ma.masked_array(s)
+                s.mask = masks[crossname][i]
+
             var_s[t,:,:,i] = s[slicez,slicex]
             del(s)
             fin.close()
 
-    crossfile.close() 
+    crossfile.close()

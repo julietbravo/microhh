@@ -13,7 +13,7 @@ indexes    = -1   # With -1, script finds the correct indexes itself
 nx         = nl['grid']['itot']
 ny         = nl['grid']['jtot']
 nz         = nl['grid']['ktot']
-starttime  = 0
+starttime  = 500
 endtime    = nl['time']['endtime']
 sampletime = nl['cross']['sampletime']
 iotimeprec = nl['time'].get('iotimeprec', default=0)
@@ -21,6 +21,9 @@ xsave      = [0,nx]
 ysave      = [0,ny]
 endian     = 'little'
 savetype   = 'float'
+
+mask_ib    = True           # Option to mask the immersed boundary in cross-section (only for DEM)
+dem_file   = 'dem.0000000'
 # End settings ---
 
 # Set the correct string for the endianness
@@ -68,6 +71,46 @@ z   = np.array(st.unpack('{0}{1}d'.format(en, nz), raw))
 raw = fin.read(nz*8)
 zh  = np.array(st.unpack('{0}{1}d'.format(en, nz), raw))
 fin.close()
+
+if (mask_ib):
+    # Read the DEM file (at full x and y location).
+    demxy = mht.read_restart_file(dem_file, nl['grid']['itot'], nl['grid']['jtot'], 1)
+
+    # Interpolate DEM to half x and y locations.
+    tmp   = np.insert(demxy, 0, demxy[:,-1], axis=1)
+    demxh = 0.5*(tmp[:,1:] + tmp[:,:-1])
+
+    tmp   = np.insert(demxy, 0, demxy[-1,:], axis=0)
+    demyh = 0.5*(tmp[1:,:] + tmp[:-1,:])
+
+    # Dictionary with variables as keys, containing list of masks for each slice.
+    masks = {}
+
+    # Process all variables.
+    for crossname in variables:
+        if indexes == -1:
+            indexes_local = mht.get_cross_indices(crossname, 'xy')
+        else:
+            indexes_local = indexes
+
+        # Select the correct location (full/half) on the grid.
+        if crossname == 'u':
+            dem = demxh
+        elif crossname == 'v':
+            dem = demyh
+        else:
+            dem = demxy
+
+        if crossname == 'w':
+            zvar = zh
+        else:
+            zvar = z
+
+        # Process all indices.
+        var_mask = []
+        for index in indexes_local:
+            var_mask.append( zvar[index] < dem )
+        masks[crossname] = var_mask
 
 # Loop over the different variables
 for crossname in variables:
@@ -134,6 +177,11 @@ for crossname in variables:
             del(raw)
             s = tmp.reshape((ny, nx))
             del(tmp)
+
+            if (mask_ib):
+                s = np.ma.masked_array(s)
+                s.mask = masks[crossname][k]
+
             var_s[t,k,:,:] = s[slicey,slicex]
             del(s)
 

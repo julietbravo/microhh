@@ -13,7 +13,7 @@ indexes    = -1   # With -1, script finds the correct indexes itself
 nx         = nl['grid']['itot']
 ny         = nl['grid']['jtot']
 nz         = nl['grid']['ktot']
-starttime  = 500
+starttime  = 0
 endtime    = nl['time']['endtime']
 sampletime = nl['cross']['sampletime']
 iotimeprec = nl['time'].get('iotimeprec', default=0)

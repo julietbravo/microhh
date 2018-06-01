@@ -23,6 +23,7 @@
 #include <cstdio>
 #include <cmath>
 #include <stdlib.h>
+#include <iostream>
 #include "master.h"
 #include "input.h"
 #include "grid.h"
@@ -30,6 +31,7 @@
 #include "buffer.h"
 #include "defines.h"
 #include "model.h"
+#include "timeloop.h"
 
 Buffer::Buffer(Model* modelin, Input* inputin)
 {
@@ -127,7 +129,6 @@ void Buffer::create(Input* inputin)
                 bufferprofs["v"][k] -= grid->vtrans;
             }
 
-
             for (FieldMap::const_iterator it=fields->sp.begin(); it!=fields->sp.end(); ++it)
                 nerror += inputin->get_prof(&bufferprofs[it->first][grid->kstart], it->first, grid->kmax);
         }
@@ -140,6 +141,52 @@ void Buffer::create(Input* inputin)
 #ifndef USECUDA
 void Buffer::exec()
 {
+    // BvS, quick and dirty test
+    // ---------------------------------------
+    const int jj = grid->icells;
+    const int kk = grid->ijcells;
+
+    const double th_left  = 299;
+    const double th_right = 299;
+
+    const double offset = 500;
+
+    const double c  = 200;
+    const double b1 = 2*offset;
+    const double b2 = grid->xsize-2*offset;
+
+    for (int k=grid->kstart; k<grid->kend; ++k)
+        for (int j=grid->jstart; j<grid->jend; ++j)
+        {
+            #pragma ivdep
+            for (int i=grid->istart; i<grid->iend/2; ++i)
+            {
+                const int ijk = i + j*jj + k*kk;
+                const double f = exp(-pow(grid->x[i]-b1,2) / (2*pow(c,2)));
+
+                fields->ap["th"]->data[ijk] = (1-f)*fields->ap["th"]->data[ijk] + f*th_left;
+                //fields->u->data[ijk] = (1-f)*fields->u->data[ijk];
+                //fields->v->data[ijk] = (1-f)*fields->v->data[ijk];
+            }
+
+            #pragma ivdep
+            for (int i=grid->iend/2; i<grid->iend; ++i)
+            {
+                const int ijk = i + j*jj + k*kk;
+                const double f = exp(-pow(grid->x[i]-b2,2) / (2*pow(c,2)));
+
+                fields->ap["th"]->data[ijk] = (1-f)*fields->ap["th"]->data[ijk] +f*th_right;
+                //fields->u->data[ijk] = (1-f)*fields->u->data[ijk];
+                //fields->v->data[ijk] = (1-f)*fields->v->data[ijk];
+            }
+        }
+
+    grid->boundary_cyclic(fields->ap["th"]->data);
+    grid->boundary_cyclic(fields->u->data);
+    grid->boundary_cyclic(fields->v->data);
+    // BvS, end of quick and dirty test
+    // ---------------------------------------
+
     if (swbuffer == "1")
     {
         if (swupdate == "1")

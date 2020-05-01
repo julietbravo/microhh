@@ -40,30 +40,33 @@ namespace
 
     template<typename TF>__global__
     void calc_mean_profile_kernel(
-            TF* __restrict__ prof, TF* __restrict__ field,
+            TF* const __restrict__ prof,
+            const TF* const __restrict__ field,
             const int istart, const int iend,
             const int jstart, const int jend,
             const int kstart, const int kend,
             const int icells, const int ijcells,
             const int ijtot)
     {
-        for (int k=kstart; k<gd.kend; ++k)
+        for (int k=kstart; k<kend; ++k)
         {
             double tmp = 0.;
             for (int j=jstart; j<jend; ++j)
                 for (int i=istart; i<iend; ++i)
                 {
                     const int ijk  = i + j*icells + k*ijcells;
-                    tmp += fld[ijk];
+                    tmp += field[ijk];
                 }
             prof[k] = tmp / ijtot;
         }
     }
 
     template<typename TF>__global__
-    TF calc_mean_kernel(
-            TF* __restrict__ field,
-            TF* __restrict__ dz, const TF zsize,
+    void calc_mean_kernel(
+            TF* mean,
+            const TF* const __restrict__ field,
+            const TF* const __restrict__ dz,
+            const TF zsize,
             const int istart, const int iend,
             const int jstart, const int jend,
             const int kstart, const int kend,
@@ -71,37 +74,35 @@ namespace
             const int ijtot)
     {
         double sum = 0.;
-        for (int k=kstart; k<gd.kend; ++k)
+        for (int k=kstart; k<kend; ++k)
             for (int j=jstart; j<jend; ++j)
                 for (int i=istart; i<iend; ++i)
                 {
                     const int ijk  = i + j*icells + k*ijcells;
-                    sum += fld[ijk] * dz[k];
+                    sum += field[ijk] * dz[k];
                 }
 
-        const TF mean = sum / (ijtot * zsize);
-        return mean;
+        *mean = sum / (ijtot * zsize);
     }
 
     template<typename TF>__global__
-    TF calc_max_kernel(
-            TF* __restrict__ field,
+    void calc_max_kernel(
+            TF* max,
+            const TF* const __restrict__ field,
             const int istart, const int iend,
             const int jstart, const int jend,
             const int kstart, const int kend,
             const int icells, const int ijcells)
     {
-        TF max = -FLT_MAX;
+        *max = -FLT_MAX;
 
-        for (int k=kstart; k<gd.kend; ++k)
+        for (int k=kstart; k<kend; ++k)
             for (int j=jstart; j<jend; ++j)
                 for (int i=istart; i<iend; ++i)
                 {
                     const int ijk  = i + j*icells + k*ijcells;
-                    max = fmax(fld[ijk], max);
+                    *max = fmax(field[ijk], *max);
                 }
-
-        return max;
     }
 }
 
@@ -184,14 +185,22 @@ TF Field3d_operators<TF>::calc_mean_g(const TF* const restrict fld)
     */
 
     auto& gd = grid.get_grid_data();
+    TF* mean_g;
+    TF mean;
 
-    TF mean = calc_mean_kernel<<<1,1>>>(
+    cudaMalloc(&mean_g, sizeof(TF));
+
+    calc_mean_kernel<<<1,1>>>(
+            mean_g,
             fld, gd.dz_g, gd.zsize,
             gd.istart, gd.iend,
             gd.jstart, gd.jend,
             gd.kstart, gd.kend,
             gd.icells, gd.ijcells,
             gd.itot*gd.jtot);
+
+    cudaMemcpy(&mean, mean_g, sizeof(TF), cudaMemcpyDeviceToHost); 
+    cudaFree(mean_g);
 
     return mean;
 }
@@ -235,13 +244,20 @@ TF Field3d_operators<TF>::calc_max_g(const TF* const restrict fld)
     */
 
     auto& gd = grid.get_grid_data();
+    TF* max_g;
+    TF max;
 
-    TF max = calc_max_kernel<<<1,1>>>(
-            fld,
+    cudaMalloc(&max_g, sizeof(TF));
+
+    calc_max_kernel<<<1,1>>>(
+            max_g, fld,
             gd.istart, gd.iend,
             gd.jstart, gd.jend,
             gd.kstart, gd.kend,
             gd.icells, gd.ijcells);
+
+    cudaMemcpy(&max, max_g, sizeof(TF), cudaMemcpyDeviceToHost); 
+    cudaFree(max_g);
 
     return max;
 }

@@ -23,6 +23,7 @@
 #include <cstdio>
 #include <iostream>
 #include <cmath>
+#include "float.h"
 #include "master.h"
 #include "grid.h"
 #include "field3d.h"
@@ -31,23 +32,116 @@
 #include "tools.h"
 #include "field3d_operators.h"
 
+namespace
+{
+    // NOTE: these functions are only for debugging purposes,
+    //       and are extremely slow as all calculations are done
+    //       on a single thread in a single threadblock......
+
+    template<typename TF>__global__
+    void calc_mean_profile_kernel(
+            TF* __restrict__ prof, TF* __restrict__ field,
+            const int istart, const int iend,
+            const int jstart, const int jend,
+            const int kstart, const int kend,
+            const int icells, const int ijcells,
+            const int ijtot)
+    {
+        for (int k=kstart; k<gd.kend; ++k)
+        {
+            double tmp = 0.;
+            for (int j=jstart; j<jend; ++j)
+                for (int i=istart; i<iend; ++i)
+                {
+                    const int ijk  = i + j*icells + k*ijcells;
+                    tmp += fld[ijk];
+                }
+            prof[k] = tmp / ijtot;
+        }
+    }
+
+    template<typename TF>__global__
+    TF calc_mean_kernel(
+            TF* __restrict__ field,
+            TF* __restrict__ dz, const TF zsize,
+            const int istart, const int iend,
+            const int jstart, const int jend,
+            const int kstart, const int kend,
+            const int icells, const int ijcells,
+            const int ijtot)
+    {
+        double sum = 0.;
+        for (int k=kstart; k<gd.kend; ++k)
+            for (int j=jstart; j<jend; ++j)
+                for (int i=istart; i<iend; ++i)
+                {
+                    const int ijk  = i + j*icells + k*ijcells;
+                    sum += fld[ijk] * dz[k];
+                }
+
+        const TF mean = sum / (ijtot * zsize);
+        return mean;
+    }
+
+    template<typename TF>__global__
+    TF calc_max_kernel(
+            TF* __restrict__ field,
+            const int istart, const int iend,
+            const int jstart, const int jend,
+            const int kstart, const int kend,
+            const int icells, const int ijcells)
+    {
+        TF max = -FLT_MAX;
+
+        for (int k=kstart; k<gd.kend; ++k)
+            for (int j=jstart; j<jend; ++j)
+                for (int i=istart; i<iend; ++i)
+                {
+                    const int ijk  = i + j*icells + k*ijcells;
+                    max = fmax(fld[ijk], max);
+                }
+
+        return max;
+    }
+}
+
 #ifdef USECUDA
 template<typename TF>
 void Field3d_operators<TF>::calc_mean_profile_g(TF* const restrict prof, const TF* const restrict fld)
 {
     using namespace Tools_g;
 
+    /*
     const Grid_data<TF>& gd = grid.get_grid_data();
     const TF scalefac = 1./(gd.itot*gd.jtot);
 
     auto tmp = fields.get_tmp_g();
 
     // Reduce 3D field excluding ghost cells and padding to jtot*kcells values
-    reduce_interior<TF>(fld, tmp->fld_g, gd.itot, gd.istart, gd.iend, gd.jtot, gd.jstart, gd.jend, gd.kcells, 0, gd.icells, gd.ijcells, Sum_type);
+    reduce_interior<TF>(
+            fld, tmp->fld_g,
+            gd.itot, gd.istart, gd.iend,
+            gd.jtot, gd.jstart, gd.jend,
+            gd.kcells, 0,
+            gd.icells, gd.ijcells, Sum_type);
+
     // Reduce jtot*kcells to kcells values
-    reduce_all<TF>     (tmp->fld_g, prof, gd.jtot*gd.kcells, gd.kcells, gd.jtot, Sum_type, scalefac);
+    reduce_all<TF>(
+            tmp->fld_g, prof, gd.jtot*gd.kcells,
+            gd.kcells, gd.jtot, Sum_type, scalefac);
 
     fields.release_tmp_g(tmp);
+    */
+
+    auto& gd = grid.get_grid_data();
+
+    calc_mean_profile_kernel<<<1,1>>>(
+            prof, fld,
+            gd.istart, gd.iend,
+            gd.jstart, gd.jend,
+            gd.kstart, gd.kend,
+            gd.icells, gd.ijcells,
+            gd.itot*gd.jtot);
 }
 
 template<typename TF>
@@ -55,6 +149,7 @@ TF Field3d_operators<TF>::calc_mean_g(const TF* const restrict fld)
 {
     using namespace Tools_g;
 
+    /*
     const Grid_data<TF>& gd = grid.get_grid_data();
     const TF scalefac = 1./(gd.itot*gd.jtot*gd.zsize);
     TF mean_value;
@@ -62,19 +157,43 @@ TF Field3d_operators<TF>::calc_mean_g(const TF* const restrict fld)
     auto tmp = fields.get_tmp_g();
 
     // Reduce 3D field excluding ghost cells and padding to jtot*ktot values
-    reduce_interior<TF>(fld, tmp->fld_g, gd.itot, gd.istart, gd.iend, gd.jtot, gd.jstart, gd.jend, gd.ktot, gd.kstart, gd.icells, gd.ijcells, Sum_type);
+    reduce_interior<TF>(
+            fld, tmp->fld_g,
+            gd.itot, gd.istart, gd.iend,
+            gd.jtot, gd.jstart, gd.jend,
+            gd.ktot, gd.kstart,
+            gd.icells, gd.ijcells, Sum_type);
+
     // Reduce jtot*ktot to ktot values
     for (int k=0; k<gd.ktot; ++k)
     {
-        reduce_all<TF> (&tmp->fld_g[gd.jtot*k], &tmp->fld_g[gd.jtot*gd.ktot+k], gd.jtot, 1., gd.jtot, Sum_type, gd.dz[k+gd.kstart]);
+        reduce_all<TF>(
+                &tmp->fld_g[gd.jtot*k], &tmp->fld_g[gd.jtot*gd.ktot+k],
+                gd.jtot, 1., gd.jtot, Sum_type, gd.dz[k+gd.kstart]);
     }
     // Reduce ktot values to a single value
-    reduce_all<TF>     (&tmp->fld_g[gd.jtot*gd.ktot], tmp->fld_g, gd.ktot, 1, gd.ktot, Sum_type, scalefac);
+    reduce_all<TF>(
+            &tmp->fld_g[gd.jtot*gd.ktot], tmp->fld_g,
+            gd.ktot, 1, gd.ktot, Sum_type, scalefac);
+
     // Copy back result from GPU
     cuda_safe_call(cudaMemcpy(&mean_value, tmp->fld_g, sizeof(TF), cudaMemcpyDeviceToHost));
 
     fields.release_tmp_g(tmp);
     return mean_value;
+    */
+
+    auto& gd = grid.get_grid_data();
+
+    TF mean = calc_mean_kernel<<<1,1>>>(
+            fld, gd.dz_g, gd.zsize,
+            gd.istart, gd.iend,
+            gd.jstart, gd.jend,
+            gd.kstart, gd.kend,
+            gd.icells, gd.ijcells,
+            gd.itot*gd.jtot);
+
+    return mean;
 }
 
 template<typename TF>
@@ -82,6 +201,7 @@ TF Field3d_operators<TF>::calc_max_g(const TF* const restrict fld)
 {
     using namespace Tools_g;
 
+    /*
     const Grid_data<TF>& gd = grid.get_grid_data();
     const TF scalefac = 1.;
     TF max_value;
@@ -89,17 +209,41 @@ TF Field3d_operators<TF>::calc_max_g(const TF* const restrict fld)
     auto tmp = fields.get_tmp_g();
 
     // Reduce 3D field excluding ghost cells and padding to jtot*ktot values
-    reduce_interior<TF>(fld, tmp->fld_g, gd.itot, gd.istart, gd.iend, gd.jtot, gd.jstart, gd.jend, gd.ktot, gd.kstart, gd.icells, gd.ijcells, Max_type);
+    reduce_interior<TF>(
+            fld, tmp->fld_g,
+            gd.itot, gd.istart, gd.iend,
+            gd.jtot, gd.jstart, gd.jend,
+            gd.ktot, gd.kstart,
+            gd.icells, gd.ijcells, Max_type);
+
     // Reduce jtot*ktot to ktot values
-    reduce_all<TF>     (tmp->fld_g, &tmp->fld_g[gd.jtot*gd.ktot], gd.jtot*gd.ktot, gd.ktot, gd.jtot, Max_type, scalefac);
+    reduce_all<TF>(
+            tmp->fld_g, &tmp->fld_g[gd.jtot*gd.ktot],
+            gd.jtot*gd.ktot, gd.ktot, gd.jtot, Max_type, scalefac);
+
     // Reduce ktot values to a single value
-    reduce_all<TF>     (&tmp->fld_g[gd.jtot*gd.ktot], tmp->fld_g, gd.ktot, 1, gd.ktot, Max_type, scalefac);
+    reduce_all<TF>(
+            &tmp->fld_g[gd.jtot*gd.ktot], tmp->fld_g,
+            gd.ktot, 1, gd.ktot, Max_type, scalefac);
+
     // Copy back result from GPU
     cuda_safe_call(cudaMemcpy(&max_value, tmp->fld_g, sizeof(TF), cudaMemcpyDeviceToHost));
 
     fields.release_tmp_g(tmp);
 
     return max_value;
+    */
+
+    auto& gd = grid.get_grid_data();
+
+    TF max = calc_max_kernel<<<1,1>>>(
+            fld,
+            gd.istart, gd.iend,
+            gd.jstart, gd.jend,
+            gd.kstart, gd.kend,
+            gd.icells, gd.ijcells);
+
+    return max;
 }
 #endif
 

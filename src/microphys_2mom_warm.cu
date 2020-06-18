@@ -61,13 +61,14 @@ namespace micro
 
     // Autoconversion: formation of rain drop by coagulating cloud droplets
     template<typename TF> __global__
-    void autoconversion_g(TF* const __restrict__ qrt, TF* const __restrict__ nrt,
-                          TF* const __restrict__ qtt, TF* const __restrict__ thlt,
-                          const TF* const __restrict__ qr,  const TF* const __restrict__ ql,
-                          const TF* const __restrict__ rho, const TF* const __restrict__ exner, const TF nc,
-                          const int istart, const int jstart, const int kstart,
-                          const int iend,   const int jend,   const int kend,
-                          const int jj, const int kk)
+    void autoconversion_sb_g(
+            TF* const __restrict__ qrt, TF* const __restrict__ nrt,
+            TF* const __restrict__ qtt, TF* const __restrict__ thlt,
+            const TF* const __restrict__ qr,  const TF* const __restrict__ ql,
+            const TF* const __restrict__ rho, const TF* const __restrict__ exner, const TF nc,
+            const int istart, const int jstart, const int kstart,
+            const int iend,   const int jend,   const int kend,
+            const int jj, const int kk)
     {
         const int i = blockIdx.x*blockDim.x + threadIdx.x + istart;
         const int j = blockIdx.y*blockDim.y + threadIdx.y + jstart;
@@ -99,9 +100,40 @@ namespace micro
         }
     }
 
-    // Accreation: growth of raindrops collecting cloud droplets
     template<typename TF> __global__
-    void accretion_g(TF* const __restrict__ qrt, TF* const __restrict__ qtt, TF* const __restrict__ thlt,
+    void autoconversion_kk_g(
+            TF* const __restrict__ qrt, TF* const __restrict__ nrt,
+            TF* const __restrict__ qtt, TF* const __restrict__ thlt,
+            const TF* const __restrict__ qr,  const TF* const __restrict__ ql,
+            const TF* const __restrict__ rho, const TF* const __restrict__ exner, const TF nc,
+            const int istart, const int jstart, const int kstart,
+            const int iend,   const int jend,   const int kend,
+            const int jj, const int kk)
+    {
+        const int i = blockIdx.x*blockDim.x + threadIdx.x + istart;
+        const int j = blockIdx.y*blockDim.y + threadIdx.y + jstart;
+        const int k = blockIdx.z + kstart;
+
+        const TF x_star = 2.6e-10;   // SB06, list of symbols, same as UCLA-LES
+
+        if (i < iend && j < jend && k < kend)
+        {
+            const int ijk = i + j*jj + k*kk;
+            if (ql[ijk] > ql_min<TF>)
+            {
+                const TF au_tend = TF(1350) * pow(ql[ijk], TF(2.47)) * pow(nc*TF(1e-6), TF(-1.79));
+
+                qrt[ijk]  += au_tend;
+                nrt[ijk]  += au_tend * rho[k] / x_star;
+                qtt[ijk]  -= au_tend;
+                thlt[ijk] += Lv<TF> / (cp<TF> * exner[k]) * au_tend;
+            }
+        }
+    }
+
+    // Accretion: growth of raindrops collecting cloud droplets
+    template<typename TF> __global__
+    void accretion_sb_g(TF* const __restrict__ qrt, TF* const __restrict__ qtt, TF* const __restrict__ thlt,
                      const TF* const __restrict__ qr,  const TF* const __restrict__ ql,
                      const TF* const __restrict__ rho, const TF* const __restrict__ exner,
                      const int istart, const int jstart, const int kstart,
@@ -122,6 +154,33 @@ namespace micro
                 const TF tau     = TF(1.) - ql[ijk] / (ql[ijk] + qr[ijk]); // SB06, Eq 5
                 const TF phi_ac  = pow(tau / (tau + TF(5e-5)), TF(4)); // SB06, Eq 8
                 const TF ac_tend = k_cr * ql[ijk] *  qr[ijk] * phi_ac * pow(rho_0<TF> / rho[k], TF(0.5)); // SB06, Eq 7
+
+                qrt[ijk]  += ac_tend;
+                qtt[ijk]  -= ac_tend;
+                thlt[ijk] += Lv<TF> / (cp<TF> * exner[k]) * ac_tend;
+            }
+        }
+    }
+
+    // Accretion: growth of raindrops collecting cloud droplets
+    template<typename TF> __global__
+    void accretion_kk_g(TF* const __restrict__ qrt, TF* const __restrict__ qtt, TF* const __restrict__ thlt,
+                     const TF* const __restrict__ qr,  const TF* const __restrict__ ql,
+                     const TF* const __restrict__ rho, const TF* const __restrict__ exner,
+                     const int istart, const int jstart, const int kstart,
+                     const int iend,   const int jend,   const int kend,
+                     const int jj, const int kk)
+    {
+        const int i = blockIdx.x*blockDim.x + threadIdx.x + istart;
+        const int j = blockIdx.y*blockDim.y + threadIdx.y + jstart;
+        const int k = blockIdx.z + kstart;
+
+        if (i < iend && j < jend && k < kend)
+        {
+            const int ijk = i + j*jj + k*kk;
+            if (ql[ijk] > ql_min<TF> && qr[ijk] > qr_min<TF>)
+            {
+                const TF ac_tend = TF(67.) * pow(ql[ijk] * qr[ijk], TF(1.15));
 
                 qrt[ijk]  += ac_tend;
                 qtt[ijk]  -= ac_tend;
@@ -526,22 +585,44 @@ void Microphys_2mom_warm<TF>::exec(Thermo<TF>& thermo, const double dt, Stats<TF
     // ---------------------------------
 
     // Autoconversion; formation of rain drop by coagulating cloud droplets
-    micro::autoconversion_g<<<gridGPU, blockGPU>>>(
-        fields.st.at("qr")->fld_g, fields.st.at("nr")->fld_g,
-        fields.st.at("qt")->fld_g, fields.st.at("thl")->fld_g,
-        fields.sp.at("qr")->fld_g, ql->fld_g, fields.rhoref_g, exner, Nc0<TF>,
-        gd.istart, gd.jstart, gd.kstart,
-        gd.iend,   gd.jend,   gd.kend,
-        gd.icells, gd.ijcells);
+
+    if (sw_autoconversion == Warm_autoconversion_type::SB_type)
+    {
+        micro::autoconversion_sb_g<<<gridGPU, blockGPU>>>(
+            fields.st.at("qr")->fld_g, fields.st.at("nr")->fld_g,
+            fields.st.at("qt")->fld_g, fields.st.at("thl")->fld_g,
+            fields.sp.at("qr")->fld_g, ql->fld_g, fields.rhoref_g, exner, Nc0<TF>,
+            gd.istart, gd.jstart, gd.kstart,
+            gd.iend,   gd.jend,   gd.kend,
+            gd.icells, gd.ijcells);
+    }
+    else if (sw_autoconversion == Warm_autoconversion_type::KK_type)
+    {
+        micro::autoconversion_kk_g<<<gridGPU, blockGPU>>>(
+            fields.st.at("qr")->fld_g, fields.st.at("nr")->fld_g,
+            fields.st.at("qt")->fld_g, fields.st.at("thl")->fld_g,
+            fields.sp.at("qr")->fld_g, ql->fld_g, fields.rhoref_g, exner, Nc0<TF>,
+            gd.istart, gd.jstart, gd.kstart,
+            gd.iend,   gd.jend,   gd.kend,
+            gd.icells, gd.ijcells);
+    }
     cuda_check_error();
 
     // Accretion; growth of raindrops collecting cloud droplets
-    micro::accretion_g<<<gridGPU, blockGPU>>>(
-        fields.st.at("qr")->fld_g, fields.st.at("qt")->fld_g, fields.st.at("thl")->fld_g,
-        fields.sp.at("qr")->fld_g, ql->fld_g, fields.rhoref_g, exner,
-        gd.istart, gd.jstart, gd.kstart,
-        gd.iend,   gd.jend,   gd.kend,
-        gd.icells, gd.ijcells);
+    if (sw_accretion == Warm_accretion_type::SB_type)
+        micro::accretion_sb_g<<<gridGPU, blockGPU>>>(
+            fields.st.at("qr")->fld_g, fields.st.at("qt")->fld_g, fields.st.at("thl")->fld_g,
+            fields.sp.at("qr")->fld_g, ql->fld_g, fields.rhoref_g, exner,
+            gd.istart, gd.jstart, gd.kstart,
+            gd.iend,   gd.jend,   gd.kend,
+            gd.icells, gd.ijcells);
+    else if (sw_accretion == Warm_accretion_type::KK_type)
+        micro::accretion_kk_g<<<gridGPU, blockGPU>>>(
+            fields.st.at("qr")->fld_g, fields.st.at("qt")->fld_g, fields.st.at("thl")->fld_g,
+            fields.sp.at("qr")->fld_g, ql->fld_g, fields.rhoref_g, exner,
+            gd.istart, gd.jstart, gd.kstart,
+            gd.iend,   gd.jend,   gd.kend,
+            gd.icells, gd.ijcells);
     cuda_check_error();
 
     // Evaporation; evaporation of rain drops in unsaturated environment

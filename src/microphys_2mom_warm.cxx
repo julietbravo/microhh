@@ -88,13 +88,14 @@ namespace mp3d
 {
     // Autoconversion: formation of rain drop by coagulating cloud droplets
     template<typename TF>
-    void autoconversion(TF* const restrict qrt, TF* const restrict nrt,
-                        TF* const restrict qtt, TF* const restrict thlt,
-                        const TF* const restrict qr,  const TF* const restrict ql,
-                        const TF* const restrict rho, const TF* const restrict exner, const TF nc,
-                        const int istart, const int jstart, const int kstart,
-                        const int iend,   const int jend,   const int kend,
-                        const int jj, const int kk)
+    void autoconversion_sb(
+            TF* const restrict qrt, TF* const restrict nrt,
+            TF* const restrict qtt, TF* const restrict thlt,
+            const TF* const restrict qr,  const TF* const restrict ql,
+            const TF* const restrict rho, const TF* const restrict exner, const TF nc,
+            const int istart, const int jstart, const int kstart,
+            const int iend,   const int jend,   const int kend,
+            const int jj, const int kk)
     {
         const TF x_star = 2.6e-10;       // SB06, list of symbols, same as UCLA-LES
         const TF k_cc   = 9.44e9;        // UCLA-LES (Long, 1974), 4.44e9 in SB06, p48
@@ -124,9 +125,40 @@ namespace mp3d
                 }
     }
 
-    // Accreation: growth of raindrops collecting cloud droplets
+    // Autoconversion: formation of rain drop by coagulating cloud droplets
     template<typename TF>
-    void accretion(TF* const restrict qrt, TF* const restrict qtt, TF* const restrict thlt,
+    void autoconversion_kk(
+            TF* const restrict qrt, TF* const restrict nrt,
+            TF* const restrict qtt, TF* const restrict thlt,
+            const TF* const restrict qr,  const TF* const restrict ql,
+            const TF* const restrict rho, const TF* const restrict exner, const TF nc,
+            const int istart, const int jstart, const int kstart,
+            const int iend,   const int jend,   const int kend,
+            const int jj, const int kk)
+    {
+        const TF x_star = 2.6e-10;       // SB06, list of symbols, same as UCLA-LES
+
+        for (int k=kstart; k<kend; k++)
+            for (int j=jstart; j<jend; j++)
+                #pragma ivdep
+                for (int i=istart; i<iend; i++)
+                {
+                    const int ijk = i + j*jj + k*kk;
+                    if(ql[ijk] > ql_min<TF>)
+                    {
+                        const TF au_tend = TF(1350) * pow(ql[ijk], TF(2.47)) * pow(nc*TF(1e-6), TF(-1.79));
+
+                        qrt[ijk]  += au_tend;
+                        nrt[ijk]  += au_tend * rho[k] / x_star;
+                        qtt[ijk]  -= au_tend;
+                        thlt[ijk] += Lv<TF> / (cp<TF> * exner[k]) * au_tend;
+                    }
+                }
+    }
+
+    // Accretion: growth of raindrops collecting cloud droplets
+    template<typename TF>
+    void accretion_sb(TF* const restrict qrt, TF* const restrict qtt, TF* const restrict thlt,
                    const TF* const restrict qr,  const TF* const restrict ql,
                    const TF* const restrict rho, const TF* const restrict exner,
                    const int istart, const int jstart, const int kstart,
@@ -154,6 +186,31 @@ namespace mp3d
                 }
     }
 
+    // Accretion: growth of raindrops collecting cloud droplets
+    template<typename TF>
+    void accretion_kk(TF* const restrict qrt, TF* const restrict qtt, TF* const restrict thlt,
+                   const TF* const restrict qr,  const TF* const restrict ql,
+                   const TF* const restrict rho, const TF* const restrict exner,
+                   const int istart, const int jstart, const int kstart,
+                   const int iend,   const int jend,   const int kend,
+                   const int jj, const int kk)
+    {
+        for (int k=kstart; k<kend; k++)
+            for (int j=jstart; j<jend; j++)
+                #pragma ivdep
+                for (int i=istart; i<iend; i++)
+                {
+                    const int ijk = i + j*jj + k*kk;
+                    if(ql[ijk] > ql_min<TF> && qr[ijk] > qr_min<TF>)
+                    {
+                        const TF ac_tend = TF(67.) * pow(ql[ijk] * qr[ijk], TF(1.15));
+
+                        qrt[ijk]  += ac_tend;
+                        qtt[ijk]  -= ac_tend;
+                        thlt[ijk] += Lv<TF> / (cp<TF> * exner[k]) * ac_tend;
+                    }
+                }
+    }
 
     // Calculate maximum sedimentation velocity
     template<typename TF>
@@ -543,6 +600,30 @@ Microphys_2mom_warm<TF>::Microphys_2mom_warm(Master& masterin, Grid<TF>& gridin,
     cflmax        = inputin.get_item<TF>("micro", "cflmax", "", 2.);
     Nc0<TF>       = inputin.get_item<TF>("micro", "Nc0", "", 70e6);
 
+    // Switch between SB and KK schemes for autoconversion and accretion
+    std::string auto_type = inputin.get_item<std::string>("micro", "swautoconversion", "", "SB");
+    std::string accr_type = inputin.get_item<std::string>("micro", "swaccretion", "", "SB");
+
+    if (auto_type == "SB")
+        sw_autoconversion = Warm_autoconversion_type::SB_type;
+    else if (auto_type == "KK")
+        sw_autoconversion = Warm_autoconversion_type::KK_type;
+    else
+    {
+        std::string error = "Autconversion type \"" + auto_type + "\" is not a valid option!";
+        throw std::runtime_error(error);
+    }
+
+    if (accr_type == "SB")
+        sw_accretion = Warm_accretion_type::SB_type;
+    else if (accr_type == "KK")
+        sw_accretion = Warm_accretion_type::KK_type;
+    else
+    {
+        std::string error = "Accretion type \"" + accr_type + "\" is not a valid option!";
+        throw std::runtime_error(error);
+    }
+
     // Initialize the qr (rain water specific humidity) and nr (droplot number concentration) fields
     const std::string group_name = "thermo";
 
@@ -676,18 +757,36 @@ void Microphys_2mom_warm<TF>::exec(Thermo<TF>& thermo, const double dt, Stats<TF
     // ---------------------------------
 
     // Autoconversion; formation of rain drop by coagulating cloud droplets
-    mp3d::autoconversion(fields.st.at("qr")->fld.data(), fields.st.at("nr")->fld.data(), fields.st.at("qt")->fld.data(), fields.st.at("thl")->fld.data(),
-                         fields.sp.at("qr")->fld.data(), ql->fld.data(), fields.rhoref.data(), exner.data(), Nc0<TF>,
-                         gd.istart, gd.jstart, gd.kstart,
-                         gd.iend,   gd.jend,   gd.kend,
-                         gd.icells, gd.ijcells);
+    if (sw_autoconversion == Warm_autoconversion_type::SB_type)
+        mp3d::autoconversion_sb(
+                fields.st.at("qr")->fld.data(), fields.st.at("nr")->fld.data(), fields.st.at("qt")->fld.data(), fields.st.at("thl")->fld.data(),
+                fields.sp.at("qr")->fld.data(), ql->fld.data(), fields.rhoref.data(), exner.data(), Nc0<TF>,
+                gd.istart, gd.jstart, gd.kstart,
+                gd.iend,   gd.jend,   gd.kend,
+                gd.icells, gd.ijcells);
+    else if (sw_autoconversion == Warm_autoconversion_type::KK_type)
+        mp3d::autoconversion_kk(
+                fields.st.at("qr")->fld.data(), fields.st.at("nr")->fld.data(), fields.st.at("qt")->fld.data(), fields.st.at("thl")->fld.data(),
+                fields.sp.at("qr")->fld.data(), ql->fld.data(), fields.rhoref.data(), exner.data(), Nc0<TF>,
+                gd.istart, gd.jstart, gd.kstart,
+                gd.iend,   gd.jend,   gd.kend,
+                gd.icells, gd.ijcells);
 
     // Accretion; growth of raindrops collecting cloud droplets
-    mp3d::accretion(fields.st.at("qr")->fld.data(), fields.st.at("qt")->fld.data(), fields.st.at("thl")->fld.data(),
-                    fields.sp.at("qr")->fld.data(), ql->fld.data(), fields.rhoref.data(), exner.data(),
-                    gd.istart, gd.jstart, gd.kstart,
-                    gd.iend,   gd.jend,   gd.kend,
-                    gd.icells, gd.ijcells);
+    if (sw_accretion == Warm_accretion_type::SB_type)
+        mp3d::accretion_sb(
+                fields.st.at("qr")->fld.data(), fields.st.at("qt")->fld.data(), fields.st.at("thl")->fld.data(),
+                fields.sp.at("qr")->fld.data(), ql->fld.data(), fields.rhoref.data(), exner.data(),
+                gd.istart, gd.jstart, gd.kstart,
+                gd.iend,   gd.jend,   gd.kend,
+                gd.icells, gd.ijcells);
+    else if (sw_accretion == Warm_accretion_type::KK_type)
+        mp3d::accretion_kk(
+                fields.st.at("qr")->fld.data(), fields.st.at("qt")->fld.data(), fields.st.at("thl")->fld.data(),
+                fields.sp.at("qr")->fld.data(), ql->fld.data(), fields.rhoref.data(), exner.data(),
+                gd.istart, gd.jstart, gd.kstart,
+                gd.iend,   gd.jend,   gd.kend,
+                gd.icells, gd.ijcells);
 
     // Rest of the microphysics is handled per XZ slice
     for (int j=gd.jstart; j<gd.jend; ++j)
@@ -812,11 +911,18 @@ void Microphys_2mom_warm<TF>::exec_stats(Stats<TF>& stats, Thermo<TF>& thermo, c
         zero_field(thlt->fld.data(), gd.ncells);
         zero_field(qtt->fld.data(),  gd.ncells);
 
-        mp3d::autoconversion(qrt->fld.data(), nrt->fld.data(), qtt->fld.data(), thlt->fld.data(),
-                             fields.sp.at("qr")->fld.data(), ql->fld.data(), fields.rhoref.data(), exner.data(), Nc0<TF>,
-                             gd.istart, gd.jstart, gd.kstart,
-                             gd.iend,   gd.jend,   gd.kend,
-                             gd.icells, gd.ijcells);
+        if (sw_autoconversion == Warm_autoconversion_type::SB_type)
+            mp3d::autoconversion_sb(qrt->fld.data(), nrt->fld.data(), qtt->fld.data(), thlt->fld.data(),
+                                 fields.sp.at("qr")->fld.data(), ql->fld.data(), fields.rhoref.data(), exner.data(), Nc0<TF>,
+                                 gd.istart, gd.jstart, gd.kstart,
+                                 gd.iend,   gd.jend,   gd.kend,
+                                 gd.icells, gd.ijcells);
+        else if (sw_autoconversion == Warm_autoconversion_type::SB_type)
+            mp3d::autoconversion_kk(qrt->fld.data(), nrt->fld.data(), qtt->fld.data(), thlt->fld.data(),
+                                 fields.sp.at("qr")->fld.data(), ql->fld.data(), fields.rhoref.data(), exner.data(), Nc0<TF>,
+                                 gd.istart, gd.jstart, gd.kstart,
+                                 gd.iend,   gd.jend,   gd.kend,
+                                 gd.icells, gd.ijcells);
 
         stats.calc_stats("auto_qrt" , *qrt , no_offset, no_threshold);
         stats.calc_stats("auto_nrt" , *nrt , no_offset, no_threshold);
@@ -829,11 +935,18 @@ void Microphys_2mom_warm<TF>::exec_stats(Stats<TF>& stats, Thermo<TF>& thermo, c
         zero_field(thlt->fld.data(), gd.ncells);
         zero_field(qtt->fld.data(),  gd.ncells);
 
-        mp3d::accretion(qrt->fld.data(), qtt->fld.data(), thlt->fld.data(),
-                        fields.sp.at("qr")->fld.data(), ql->fld.data(), fields.rhoref.data(), exner.data(),
-                        gd.istart, gd.jstart, gd.kstart,
-                        gd.iend,   gd.jend,   gd.kend,
-                        gd.icells, gd.ijcells);
+        if (sw_accretion == Warm_accretion_type::SB_type)
+            mp3d::accretion_sb(qrt->fld.data(), qtt->fld.data(), thlt->fld.data(),
+                            fields.sp.at("qr")->fld.data(), ql->fld.data(), fields.rhoref.data(), exner.data(),
+                            gd.istart, gd.jstart, gd.kstart,
+                            gd.iend,   gd.jend,   gd.kend,
+                            gd.icells, gd.ijcells);
+        else if (sw_accretion == Warm_accretion_type::KK_type)
+            mp3d::accretion_kk(qrt->fld.data(), qtt->fld.data(), thlt->fld.data(),
+                            fields.sp.at("qr")->fld.data(), ql->fld.data(), fields.rhoref.data(), exner.data(),
+                            gd.istart, gd.jstart, gd.kstart,
+                            gd.iend,   gd.jend,   gd.kend,
+                            gd.icells, gd.ijcells);
 
         stats.calc_stats("accr_qrt" , *qrt , no_offset, no_threshold);
         stats.calc_stats("accr_thlt", *thlt, no_offset, no_threshold);

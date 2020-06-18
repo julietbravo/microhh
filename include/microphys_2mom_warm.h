@@ -147,6 +147,9 @@ namespace Micro_2mom_warm_functions
     }
 }
 
+enum class Warm_autoconversion_type {SB_type, KK_type};
+enum class Warm_accretion_type {SB_type, KK_type};
+
 template<typename TF>
 class Microphys_2mom_warm : public Microphys<TF>
 {
@@ -180,6 +183,10 @@ class Microphys_2mom_warm : public Microphys<TF>
 
         bool swmicrobudget;     // Output full microphysics budget terms
         TF cflmax;              // Max CFL number in microphysics sedimentation
+
+        // Switches between the SB and KK schemes
+        Warm_autoconversion_type sw_autoconversion;
+        Warm_accretion_type sw_accretion;
 
         std::vector<std::string> crosslist;                  // Cross-sections handled by this class
         std::vector<std::string> available_masks = {"qr"};   // Vector with the masks that fields can provide

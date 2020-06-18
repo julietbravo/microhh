@@ -46,10 +46,11 @@ namespace
     using namespace Micro_2mom_warm_functions;
 
     template<typename TF>
-    void remove_negative_values(TF* const restrict field,
-                                const int istart, const int jstart, const int kstart,
-                                const int iend,   const int jend,   const int kend,
-                                const int jj,     const int kk)
+    void remove_negative_values(
+            TF* const restrict field,
+            const int istart, const int jstart, const int kstart,
+            const int iend,   const int jend,   const int kend,
+            const int jj,     const int kk)
     {
         for (int k=kstart; k<kend; k++)
             for (int j=jstart; j<jend; j++)
@@ -69,8 +70,9 @@ namespace
     }
 
     template<typename TF>
-    TF* get_tmp_slice(std::vector<std::shared_ptr<Field3d<TF>>> &tmp_fields, int &slice_counter,
-                      const int jcells, const int ikcells)
+    TF* get_tmp_slice(
+            std::vector<std::shared_ptr<Field3d<TF>>> &tmp_fields, int &slice_counter,
+            const int jcells, const int ikcells)
     {
         const int tmp_index   = slice_counter / jcells;     // Which tmp field in tmp_fields vector?
         const int fld_index   = slice_counter % jcells;     // Which slice in tmp field?
@@ -87,6 +89,7 @@ namespace
 namespace mp3d
 {
     // Autoconversion: formation of rain drop by coagulating cloud droplets
+    // Seifert & Beheng scheme
     template<typename TF>
     void autoconversion_sb(
             TF* const restrict qrt, TF* const restrict nrt,
@@ -126,6 +129,7 @@ namespace mp3d
     }
 
     // Autoconversion: formation of rain drop by coagulating cloud droplets
+    // Khairoutdinov and Kogan scheme
     template<typename TF>
     void autoconversion_kk(
             TF* const restrict qrt, TF* const restrict nrt,
@@ -157,13 +161,15 @@ namespace mp3d
     }
 
     // Accretion: growth of raindrops collecting cloud droplets
+    // Seifert & Beheng scheme
     template<typename TF>
-    void accretion_sb(TF* const restrict qrt, TF* const restrict qtt, TF* const restrict thlt,
-                   const TF* const restrict qr,  const TF* const restrict ql,
-                   const TF* const restrict rho, const TF* const restrict exner,
-                   const int istart, const int jstart, const int kstart,
-                   const int iend,   const int jend,   const int kend,
-                   const int jj, const int kk)
+    void accretion_sb(
+            TF* const restrict qrt, TF* const restrict qtt, TF* const restrict thlt,
+            const TF* const restrict qr,  const TF* const restrict ql,
+            const TF* const restrict rho, const TF* const restrict exner,
+            const int istart, const int jstart, const int kstart,
+            const int iend,   const int jend,   const int kend,
+            const int jj, const int kk)
     {
         const TF k_cr  = 5.25; // SB06, p49
 
@@ -187,13 +193,15 @@ namespace mp3d
     }
 
     // Accretion: growth of raindrops collecting cloud droplets
+    // Khairoutdinov and Kogan scheme
     template<typename TF>
-    void accretion_kk(TF* const restrict qrt, TF* const restrict qtt, TF* const restrict thlt,
-                   const TF* const restrict qr,  const TF* const restrict ql,
-                   const TF* const restrict rho, const TF* const restrict exner,
-                   const int istart, const int jstart, const int kstart,
-                   const int iend,   const int jend,   const int kend,
-                   const int jj, const int kk)
+    void accretion_kk(
+            TF* const restrict qrt, TF* const restrict qtt, TF* const restrict thlt,
+            const TF* const restrict qr,  const TF* const restrict ql,
+            const TF* const restrict rho, const TF* const restrict exner,
+            const int istart, const int jstart, const int kstart,
+            const int iend,   const int jend,   const int kend,
+            const int jj, const int kk)
     {
         for (int k=kstart; k<kend; k++)
             for (int j=jstart; j<jend; j++)
@@ -214,13 +222,14 @@ namespace mp3d
 
     // Calculate maximum sedimentation velocity
     template<typename TF>
-    TF calc_max_sedimentation_cfl(TF* const restrict w_qr,
-                                  const TF* const restrict qr, const TF* const restrict nr,
-                                  const TF* const restrict rho, const TF* const restrict dzi,
-                                  const double dt,
-                                  const int istart, const int jstart, const int kstart,
-                                  const int iend,   const int jend,   const int kend,
-                                  const int icells, const int ijcells)
+    TF calc_max_sedimentation_cfl(
+            TF* const restrict w_qr,
+            const TF* const restrict qr, const TF* const restrict nr,
+            const TF* const restrict rho, const TF* const restrict dzi,
+            const double dt,
+            const int istart, const int jstart, const int kstart,
+            const int iend,   const int jend,   const int kend,
+            const int icells, const int ijcells)
     {
         const TF w_max = 9.65; // 9.65=UCLA, 20=SS08, appendix A
         const TF a_R = 9.65;   // SB06, p51
@@ -244,7 +253,8 @@ namespace mp3d
                         const TF mur     = calc_mu_r(dr);
                         const TF lambdar = calc_lambda_r(mur, dr);
 
-                        w_qr[ijk] = std::min(w_max, std::max(TF(0.1), a_R - b_R * TF(pow(TF(1.) + c_R/lambdar, TF(-1.)*(mur+TF(4.))))));
+                        w_qr[ijk] = std::min(w_max, std::max(TF(0.1),
+                                    a_R - b_R * TF(pow(TF(1.) + c_R/lambdar, TF(-1.)*(mur+TF(4.))))));
                     }
                     else
                     {
@@ -280,7 +290,8 @@ namespace mp3d
                 {
                     const int ijk = i + j*icells + k*ijcells;
 
-                    const TF cfl_qr = TF(0.25) * (w_qr[ijk-ijcells] + TF(2.)*w_qr[ijk] + w_qr[ijk+ijcells]) * dzi[k] * TF(dt);
+                    const TF cfl_qr = TF(0.25) * (w_qr[ijk-ijcells] + TF(2.)*w_qr[ijk]
+                            + w_qr[ijk+ijcells]) * dzi[k] * TF(dt);
                     cfl_max = std::max(cfl_max, cfl_qr);
                 }
 
@@ -293,13 +304,14 @@ namespace mp2d
 {
     // Calculate microphysics properties which are used in multiple routines
     template<typename TF>
-    void prepare_microphysics_slice(TF* const restrict rain_mass, TF* const restrict rain_diameter,
-                                    TF* const restrict mu_r, TF* const restrict lambda_r,
-                                    const TF* const restrict qr, const TF* const restrict nr,
-                                    const TF* const restrict rho,
-                                    const int istart, const int iend,
-                                    const int kstart, const int kend,
-                                    const int icells, const int ijcells, const int j)
+    void prepare_microphysics_slice(
+            TF* const restrict rain_mass, TF* const restrict rain_diameter,
+            TF* const restrict mu_r, TF* const restrict lambda_r,
+            const TF* const restrict qr, const TF* const restrict nr,
+            const TF* const restrict rho,
+            const int istart, const int iend,
+            const int kstart, const int kend,
+            const int icells, const int ijcells, const int j)
     {
 
         for (int k=kstart; k<kend; k++)
@@ -328,15 +340,16 @@ namespace mp2d
 
     // Evaporation: evaporation of rain drops in unsaturated environment
     template<typename TF>
-    void evaporation(TF* const restrict qrt, TF* const restrict nrt,
-                     TF* const restrict qtt, TF* const restrict thlt,
-                     const TF* const restrict qr, const TF* const restrict nr,
-                     const TF* const restrict ql, const TF* const restrict qt, const TF* const restrict thl,
-                     const TF* const restrict rho, const TF* const restrict exner, const TF* const restrict p,
-                     const TF* const restrict rain_mass, const TF* const restrict rain_diameter,
-                     const int istart, const int jstart, const int kstart,
-                     const int iend,   const int jend,   const int kend,
-                     const int jj, const int kk, const int j)
+    void evaporation(
+            TF* const restrict qrt, TF* const restrict nrt,
+            TF* const restrict qtt, TF* const restrict thlt,
+            const TF* const restrict qr, const TF* const restrict nr,
+            const TF* const restrict ql, const TF* const restrict qt, const TF* const restrict thl,
+            const TF* const restrict rho, const TF* const restrict exner, const TF* const restrict p,
+            const TF* const restrict rain_mass, const TF* const restrict rain_diameter,
+            const int istart, const int jstart, const int kstart,
+            const int iend,   const int jend,   const int kend,
+            const int jj, const int kk, const int j)
     {
         const TF lambda_evap = 1.; // 1.0 in UCLA, 0.7 in DALES
 
@@ -371,12 +384,14 @@ namespace mp2d
 
     // Selfcollection & breakup: growth of raindrops by mutual (rain-rain) coagulation, and breakup by collisions
     template<typename TF>
-    void selfcollection_breakup(TF* const restrict nrt, const TF* const restrict qr, const TF* const restrict nr, const TF* const restrict rho,
-                                const TF* const restrict rain_mass, const TF* const restrict rain_diameter,
-                                const TF* const restrict lambda_r,
-                                const int istart, const int jstart, const int kstart,
-                                const int iend,   const int jend,   const int kend,
-                                const int jj, const int kk, const int j)
+    void selfcollection_breakup(
+            TF* const restrict nrt, const TF* const restrict qr,
+            const TF* const restrict nr, const TF* const restrict rho,
+            const TF* const restrict rain_mass, const TF* const restrict rain_diameter,
+            const TF* const restrict lambda_r,
+            const int istart, const int jstart, const int kstart,
+            const int iend,   const int jend,   const int kend,
+            const int jj, const int kk, const int j)
     {
         const TF k_rr     = 7.12;   // SB06, p49
         const TF kappa_rr = 60.7;   // SB06, p49
@@ -421,19 +436,20 @@ namespace mp2d
 
     // Sedimentation from Stevens and Seifert (2008)
     template<typename TF>
-    void sedimentation_ss08(TF* const restrict qrt, TF* const restrict nrt, TF* const restrict rr_bot,
-                            TF* const restrict w_qr, TF* const restrict w_nr,
-                            TF* const restrict c_qr, TF* const restrict c_nr,
-                            TF* const restrict slope_qr, TF* const restrict slope_nr,
-                            TF* const restrict flux_qr, TF* const restrict flux_nr,
-                            const TF* const restrict mu_r, const TF* const restrict lambda_r,
-                            const TF* const restrict qr, const TF* const restrict nr,
-                            const TF* const restrict rho, const TF* const restrict rhoh,
-                            const TF* const restrict dzi,
-                            const TF* const restrict dz, const double dt,
-                            const int istart, const int jstart, const int kstart,
-                            const int iend,   const int jend,   const int kend,
-                            const int icells, const int kcells, const int ijcells, const int j)
+    void sedimentation_ss08(
+            TF* const restrict qrt, TF* const restrict nrt, TF* const restrict rr_bot,
+            TF* const restrict w_qr, TF* const restrict w_nr,
+            TF* const restrict c_qr, TF* const restrict c_nr,
+            TF* const restrict slope_qr, TF* const restrict slope_nr,
+            TF* const restrict flux_qr, TF* const restrict flux_nr,
+            const TF* const restrict mu_r, const TF* const restrict lambda_r,
+            const TF* const restrict qr, const TF* const restrict nr,
+            const TF* const restrict rho, const TF* const restrict rhoh,
+            const TF* const restrict dzi,
+            const TF* const restrict dz, const double dt,
+            const int istart, const int jstart, const int kstart,
+            const int iend,   const int jend,   const int kend,
+            const int icells, const int kcells, const int ijcells, const int j)
     {
         const TF w_max = 9.65; // 9.65=UCLA, 20=SS08, appendix A
         const TF a_R = 9.65;   // SB06, p51
@@ -759,15 +775,19 @@ void Microphys_2mom_warm<TF>::exec(Thermo<TF>& thermo, const double dt, Stats<TF
     // Autoconversion; formation of rain drop by coagulating cloud droplets
     if (sw_autoconversion == Warm_autoconversion_type::SB_type)
         mp3d::autoconversion_sb(
-                fields.st.at("qr")->fld.data(), fields.st.at("nr")->fld.data(), fields.st.at("qt")->fld.data(), fields.st.at("thl")->fld.data(),
-                fields.sp.at("qr")->fld.data(), ql->fld.data(), fields.rhoref.data(), exner.data(), Nc0<TF>,
+                fields.st.at("qr")->fld.data(), fields.st.at("nr")->fld.data(),
+                fields.st.at("qt")->fld.data(), fields.st.at("thl")->fld.data(),
+                fields.sp.at("qr")->fld.data(), ql->fld.data(),
+                fields.rhoref.data(), exner.data(), Nc0<TF>,
                 gd.istart, gd.jstart, gd.kstart,
                 gd.iend,   gd.jend,   gd.kend,
                 gd.icells, gd.ijcells);
     else if (sw_autoconversion == Warm_autoconversion_type::KK_type)
         mp3d::autoconversion_kk(
-                fields.st.at("qr")->fld.data(), fields.st.at("nr")->fld.data(), fields.st.at("qt")->fld.data(), fields.st.at("thl")->fld.data(),
-                fields.sp.at("qr")->fld.data(), ql->fld.data(), fields.rhoref.data(), exner.data(), Nc0<TF>,
+                fields.st.at("qr")->fld.data(), fields.st.at("nr")->fld.data(),
+                fields.st.at("qt")->fld.data(), fields.st.at("thl")->fld.data(),
+                fields.sp.at("qr")->fld.data(), ql->fld.data(),
+                fields.rhoref.data(), exner.data(), Nc0<TF>,
                 gd.istart, gd.jstart, gd.kstart,
                 gd.iend,   gd.jend,   gd.kend,
                 gd.icells, gd.ijcells);
@@ -775,15 +795,17 @@ void Microphys_2mom_warm<TF>::exec(Thermo<TF>& thermo, const double dt, Stats<TF
     // Accretion; growth of raindrops collecting cloud droplets
     if (sw_accretion == Warm_accretion_type::SB_type)
         mp3d::accretion_sb(
-                fields.st.at("qr")->fld.data(), fields.st.at("qt")->fld.data(), fields.st.at("thl")->fld.data(),
-                fields.sp.at("qr")->fld.data(), ql->fld.data(), fields.rhoref.data(), exner.data(),
+                fields.st.at("qr")->fld.data(), fields.st.at("qt")->fld.data(),
+                fields.st.at("thl")->fld.data(), fields.sp.at("qr")->fld.data(),
+                ql->fld.data(), fields.rhoref.data(), exner.data(),
                 gd.istart, gd.jstart, gd.kstart,
                 gd.iend,   gd.jend,   gd.kend,
                 gd.icells, gd.ijcells);
     else if (sw_accretion == Warm_accretion_type::KK_type)
         mp3d::accretion_kk(
-                fields.st.at("qr")->fld.data(), fields.st.at("qt")->fld.data(), fields.st.at("thl")->fld.data(),
-                fields.sp.at("qr")->fld.data(), ql->fld.data(), fields.rhoref.data(), exner.data(),
+                fields.st.at("qr")->fld.data(), fields.st.at("qt")->fld.data(),
+                fields.st.at("thl")->fld.data(), fields.sp.at("qr")->fld.data(),
+                ql->fld.data(), fields.rhoref.data(), exner.data(),
                 gd.istart, gd.jstart, gd.kstart,
                 gd.iend,   gd.jend,   gd.kend,
                 gd.icells, gd.ijcells);
@@ -792,34 +814,42 @@ void Microphys_2mom_warm<TF>::exec(Thermo<TF>& thermo, const double dt, Stats<TF
     for (int j=gd.jstart; j<gd.jend; ++j)
     {
         // Prepare the XZ slices which are used in all routines
-        mp2d::prepare_microphysics_slice(rain_mass, rain_diam, mu_r, lambda_r,
-                                         fields.sp.at("qr")->fld.data(), fields.sp.at("nr")->fld.data(), fields.rhoref.data(),
-                                         gd.istart, gd.iend, gd.kstart, gd.kend, gd.icells, gd.ijcells, j);
+        mp2d::prepare_microphysics_slice(
+                rain_mass, rain_diam, mu_r, lambda_r,
+                fields.sp.at("qr")->fld.data(), fields.sp.at("nr")->fld.data(), fields.rhoref.data(),
+                gd.istart, gd.iend, gd.kstart, gd.kend, gd.icells, gd.ijcells, j);
 
         // Evaporation; evaporation of rain drops in unsaturated environment
-        mp2d::evaporation(fields.st.at("qr")->fld.data(), fields.st.at("nr")->fld.data(),  fields.st.at("qt")->fld.data(), fields.st.at("thl")->fld.data(),
-                          fields.sp.at("qr")->fld.data(), fields.sp.at("nr")->fld.data(),  ql->fld.data(),
-                          fields.sp.at("qt")->fld.data(), fields.sp.at("thl")->fld.data(), fields.rhoref.data(), exner.data(), p.data(),
-                          rain_mass, rain_diam,
-                          gd.istart, gd.jstart, gd.kstart,
-                          gd.iend,   gd.jend,   gd.kend,
-                          gd.icells, gd.ijcells, j);
+        mp2d::evaporation(
+                fields.st.at("qr")->fld.data(), fields.st.at("nr")->fld.data(),
+                fields.st.at("qt")->fld.data(), fields.st.at("thl")->fld.data(),
+                fields.sp.at("qr")->fld.data(), fields.sp.at("nr")->fld.data(),
+                ql->fld.data(), fields.sp.at("qt")->fld.data(),
+                fields.sp.at("thl")->fld.data(), fields.rhoref.data(), exner.data(), p.data(),
+                rain_mass, rain_diam,
+                gd.istart, gd.jstart, gd.kstart,
+                gd.iend,   gd.jend,   gd.kend,
+                gd.icells, gd.ijcells, j);
 
-        // Self collection and breakup; growth of raindrops by mutual (rain-rain) coagulation, and breakup by collisions
-        mp2d::selfcollection_breakup(fields.st.at("nr")->fld.data(), fields.sp.at("qr")->fld.data(), fields.sp.at("nr")->fld.data(), fields.rhoref.data(),
-                                     rain_mass, rain_diam, lambda_r,
-                                     gd.istart, gd.jstart, gd.kstart,
-                                     gd.iend,   gd.jend,   gd.kend,
-                                     gd.icells, gd.ijcells, j);
+        // Self collection and breakup; growth of raindrops by mutual (rain-rain) coagulation,
+        // and breakup by collisions
+        mp2d::selfcollection_breakup(
+                fields.st.at("nr")->fld.data(), fields.sp.at("qr")->fld.data(),
+                fields.sp.at("nr")->fld.data(), fields.rhoref.data(),
+                rain_mass, rain_diam, lambda_r,
+                gd.istart, gd.jstart, gd.kstart,
+                gd.iend,   gd.jend,   gd.kend,
+                gd.icells, gd.ijcells, j);
 
         // Sedimentation; sub-grid sedimentation of rain
-        mp2d::sedimentation_ss08(fields.st.at("qr")->fld.data(), fields.st.at("nr")->fld.data(), rr_bot.data(),
-                                 w_qr, w_nr, c_qr, c_nr, slope_qr, slope_nr, flux_qr, flux_nr, mu_r, lambda_r,
-                                 fields.sp.at("qr")->fld.data(), fields.sp.at("nr")->fld.data(),
-                                 fields.rhoref.data(), fields.rhorefh.data(), gd.dzi.data(), gd.dz.data(), dt,
-                                 gd.istart, gd.jstart, gd.kstart,
-                                 gd.iend,   gd.jend,   gd.kend,
-                                 gd.icells, gd.kcells, gd.ijcells, j);
+        mp2d::sedimentation_ss08(
+                fields.st.at("qr")->fld.data(), fields.st.at("nr")->fld.data(), rr_bot.data(),
+                w_qr, w_nr, c_qr, c_nr, slope_qr, slope_nr, flux_qr, flux_nr, mu_r, lambda_r,
+                fields.sp.at("qr")->fld.data(), fields.sp.at("nr")->fld.data(),
+                fields.rhoref.data(), fields.rhorefh.data(), gd.dzi.data(), gd.dz.data(), dt,
+                gd.istart, gd.jstart, gd.kstart,
+                gd.iend,   gd.jend,   gd.kend,
+                gd.icells, gd.kcells, gd.ijcells, j);
     }
 
     // Release all local tmp fields in use
@@ -912,17 +942,21 @@ void Microphys_2mom_warm<TF>::exec_stats(Stats<TF>& stats, Thermo<TF>& thermo, c
         zero_field(qtt->fld.data(),  gd.ncells);
 
         if (sw_autoconversion == Warm_autoconversion_type::SB_type)
-            mp3d::autoconversion_sb(qrt->fld.data(), nrt->fld.data(), qtt->fld.data(), thlt->fld.data(),
-                                 fields.sp.at("qr")->fld.data(), ql->fld.data(), fields.rhoref.data(), exner.data(), Nc0<TF>,
-                                 gd.istart, gd.jstart, gd.kstart,
-                                 gd.iend,   gd.jend,   gd.kend,
-                                 gd.icells, gd.ijcells);
+            mp3d::autoconversion_sb(
+                    qrt->fld.data(), nrt->fld.data(), qtt->fld.data(), thlt->fld.data(),
+                    fields.sp.at("qr")->fld.data(), ql->fld.data(),
+                    fields.rhoref.data(), exner.data(), Nc0<TF>,
+                    gd.istart, gd.jstart, gd.kstart,
+                    gd.iend,   gd.jend,   gd.kend,
+                    gd.icells, gd.ijcells);
         else if (sw_autoconversion == Warm_autoconversion_type::SB_type)
-            mp3d::autoconversion_kk(qrt->fld.data(), nrt->fld.data(), qtt->fld.data(), thlt->fld.data(),
-                                 fields.sp.at("qr")->fld.data(), ql->fld.data(), fields.rhoref.data(), exner.data(), Nc0<TF>,
-                                 gd.istart, gd.jstart, gd.kstart,
-                                 gd.iend,   gd.jend,   gd.kend,
-                                 gd.icells, gd.ijcells);
+            mp3d::autoconversion_kk(
+                    qrt->fld.data(), nrt->fld.data(), qtt->fld.data(), thlt->fld.data(),
+                    fields.sp.at("qr")->fld.data(), ql->fld.data(),
+                    fields.rhoref.data(), exner.data(), Nc0<TF>,
+                    gd.istart, gd.jstart, gd.kstart,
+                    gd.iend,   gd.jend,   gd.kend,
+                    gd.icells, gd.ijcells);
 
         stats.calc_stats("auto_qrt" , *qrt , no_offset, no_threshold);
         stats.calc_stats("auto_nrt" , *nrt , no_offset, no_threshold);
@@ -936,17 +970,19 @@ void Microphys_2mom_warm<TF>::exec_stats(Stats<TF>& stats, Thermo<TF>& thermo, c
         zero_field(qtt->fld.data(),  gd.ncells);
 
         if (sw_accretion == Warm_accretion_type::SB_type)
-            mp3d::accretion_sb(qrt->fld.data(), qtt->fld.data(), thlt->fld.data(),
-                            fields.sp.at("qr")->fld.data(), ql->fld.data(), fields.rhoref.data(), exner.data(),
-                            gd.istart, gd.jstart, gd.kstart,
-                            gd.iend,   gd.jend,   gd.kend,
-                            gd.icells, gd.ijcells);
+            mp3d::accretion_sb(
+                    qrt->fld.data(), qtt->fld.data(), thlt->fld.data(),
+                    fields.sp.at("qr")->fld.data(), ql->fld.data(), fields.rhoref.data(), exner.data(),
+                    gd.istart, gd.jstart, gd.kstart,
+                    gd.iend,   gd.jend,   gd.kend,
+                    gd.icells, gd.ijcells);
         else if (sw_accretion == Warm_accretion_type::KK_type)
-            mp3d::accretion_kk(qrt->fld.data(), qtt->fld.data(), thlt->fld.data(),
-                            fields.sp.at("qr")->fld.data(), ql->fld.data(), fields.rhoref.data(), exner.data(),
-                            gd.istart, gd.jstart, gd.kstart,
-                            gd.iend,   gd.jend,   gd.kend,
-                            gd.icells, gd.ijcells);
+            mp3d::accretion_kk(
+                    qrt->fld.data(), qtt->fld.data(), thlt->fld.data(),
+                    fields.sp.at("qr")->fld.data(), ql->fld.data(), fields.rhoref.data(), exner.data(),
+                    gd.istart, gd.jstart, gd.kstart,
+                    gd.iend,   gd.jend,   gd.kend,
+                    gd.icells, gd.ijcells);
 
         stats.calc_stats("accr_qrt" , *qrt , no_offset, no_threshold);
         stats.calc_stats("accr_thlt", *thlt, no_offset, no_threshold);
@@ -962,17 +998,20 @@ void Microphys_2mom_warm<TF>::exec_stats(Stats<TF>& stats, Thermo<TF>& thermo, c
 
         for (int j=gd.jstart; j<gd.jend; ++j)
         {
-            mp2d::prepare_microphysics_slice(rain_mass, rain_diam, mu_r, lambda_r,
-                                             fields.sp.at("qr")->fld.data(), fields.sp.at("nr")->fld.data(), fields.rhoref.data(),
-                                             gd.istart, gd.iend, gd.kstart, gd.kend, gd.icells, gd.ijcells, j);
+            mp2d::prepare_microphysics_slice(
+                    rain_mass, rain_diam, mu_r, lambda_r,
+                    fields.sp.at("qr")->fld.data(), fields.sp.at("nr")->fld.data(), fields.rhoref.data(),
+                    gd.istart, gd.iend, gd.kstart, gd.kend, gd.icells, gd.ijcells, j);
 
-            mp2d::evaporation(qrt->fld.data(), nrt->fld.data(),  qtt->fld.data(), thlt->fld.data(),
-                              fields.sp.at("qr")->fld.data(), fields.sp.at("nr")->fld.data(),  ql->fld.data(),
-                              fields.sp.at("qt")->fld.data(), fields.sp.at("thl")->fld.data(), fields.rhoref.data(), exner.data(), p.data(),
-                              rain_mass, rain_diam,
-                              gd.istart, gd.jstart, gd.kstart,
-                              gd.iend,   gd.jend,   gd.kend,
-                              gd.icells, gd.ijcells, j);
+            mp2d::evaporation(
+                    qrt->fld.data(), nrt->fld.data(),  qtt->fld.data(), thlt->fld.data(),
+                    fields.sp.at("qr")->fld.data(), fields.sp.at("nr")->fld.data(),  ql->fld.data(),
+                    fields.sp.at("qt")->fld.data(), fields.sp.at("thl")->fld.data(),
+                    fields.rhoref.data(), exner.data(), p.data(),
+                    rain_mass, rain_diam,
+                    gd.istart, gd.jstart, gd.kstart,
+                    gd.iend,   gd.jend,   gd.kend,
+                    gd.icells, gd.ijcells, j);
         }
 
         stats.calc_stats("evap_qrt" , *qrt , no_offset, no_threshold);
@@ -986,15 +1025,18 @@ void Microphys_2mom_warm<TF>::exec_stats(Stats<TF>& stats, Thermo<TF>& thermo, c
 
         for (int j=gd.jstart; j<gd.jend; ++j)
         {
-            mp2d::prepare_microphysics_slice(rain_mass, rain_diam, mu_r, lambda_r,
-                                             fields.sp.at("qr")->fld.data(), fields.sp.at("nr")->fld.data(), fields.rhoref.data(),
-                                             gd.istart, gd.iend, gd.kstart, gd.kend, gd.icells, gd.ijcells, j);
+            mp2d::prepare_microphysics_slice(
+                    rain_mass, rain_diam, mu_r, lambda_r,
+                    fields.sp.at("qr")->fld.data(), fields.sp.at("nr")->fld.data(), fields.rhoref.data(),
+                    gd.istart, gd.iend, gd.kstart, gd.kend, gd.icells, gd.ijcells, j);
 
-            mp2d::selfcollection_breakup(nrt->fld.data(), fields.sp.at("qr")->fld.data(), fields.sp.at("nr")->fld.data(), fields.rhoref.data(),
-                                         rain_mass, rain_diam, lambda_r,
-                                         gd.istart, gd.jstart, gd.kstart,
-                                         gd.iend,   gd.jend,   gd.kend,
-                                         gd.icells, gd.ijcells, j);
+            mp2d::selfcollection_breakup(
+                    nrt->fld.data(), fields.sp.at("qr")->fld.data(),
+                    fields.sp.at("nr")->fld.data(), fields.rhoref.data(),
+                    rain_mass, rain_diam, lambda_r,
+                    gd.istart, gd.jstart, gd.kstart,
+                    gd.iend,   gd.jend,   gd.kend,
+                    gd.icells, gd.ijcells, j);
         }
 
         stats.calc_stats("scbr_nrt" , *nrt , no_offset, no_threshold);
@@ -1006,17 +1048,19 @@ void Microphys_2mom_warm<TF>::exec_stats(Stats<TF>& stats, Thermo<TF>& thermo, c
 
         for (int j=gd.jstart; j<gd.jend; ++j)
         {
-            mp2d::prepare_microphysics_slice(rain_mass, rain_diam, mu_r, lambda_r,
-                                             fields.sp.at("qr")->fld.data(), fields.sp.at("nr")->fld.data(), fields.rhoref.data(),
-                                             gd.istart, gd.iend, gd.kstart, gd.kend, gd.icells, gd.ijcells, j);
+            mp2d::prepare_microphysics_slice(
+                    rain_mass, rain_diam, mu_r, lambda_r,
+                    fields.sp.at("qr")->fld.data(), fields.sp.at("nr")->fld.data(), fields.rhoref.data(),
+                    gd.istart, gd.iend, gd.kstart, gd.kend, gd.icells, gd.ijcells, j);
 
-            mp2d::sedimentation_ss08(qrt->fld.data(), nrt->fld.data(), rr_bot.data(),
-                                     w_qr, w_nr, c_qr, c_nr, slope_qr, slope_nr, flux_qr, flux_nr, mu_r, lambda_r,
-                                     fields.sp.at("qr")->fld.data(), fields.sp.at("nr")->fld.data(),
-                                     fields.rhoref.data(), fields.rhorefh.data(), gd.dzi.data(), gd.dz.data(), dt,
-                                     gd.istart, gd.jstart, gd.kstart,
-                                     gd.iend,   gd.jend,   gd.kend,
-                                     gd.icells, gd.kcells, gd.ijcells, j);
+            mp2d::sedimentation_ss08(
+                    qrt->fld.data(), nrt->fld.data(), rr_bot.data(),
+                    w_qr, w_nr, c_qr, c_nr, slope_qr, slope_nr, flux_qr, flux_nr, mu_r, lambda_r,
+                    fields.sp.at("qr")->fld.data(), fields.sp.at("nr")->fld.data(),
+                    fields.rhoref.data(), fields.rhorefh.data(), gd.dzi.data(), gd.dz.data(), dt,
+                    gd.istart, gd.jstart, gd.kstart,
+                    gd.iend,   gd.jend,   gd.kend,
+                    gd.icells, gd.kcells, gd.ijcells, j);
         }
 
         stats.calc_stats("sed_qrt" , *qrt , no_offset, no_threshold);
@@ -1055,11 +1099,13 @@ unsigned long Microphys_2mom_warm<TF>::get_time_limit(unsigned long idt, const d
 
     // Calculate the maximum sedimentation CFL number
     auto w_qr = fields.get_tmp();
-    TF cfl = mp3d::calc_max_sedimentation_cfl(w_qr->fld.data(), fields.sp.at("qr")->fld.data(), fields.sp.at("nr")->fld.data(),
-                                              fields.rhoref.data(), gd.dzi.data(), dt,
-                                              gd.istart, gd.jstart, gd.kstart,
-                                              gd.iend,   gd.jend,   gd.kend,
-                                              gd.icells, gd.ijcells);
+    TF cfl = mp3d::calc_max_sedimentation_cfl(
+            w_qr->fld.data(), fields.sp.at("qr")->fld.data(),
+            fields.sp.at("nr")->fld.data(),
+            fields.rhoref.data(), gd.dzi.data(), dt,
+            gd.istart, gd.jstart, gd.kstart,
+            gd.iend,   gd.jend,   gd.kend,
+            gd.icells, gd.ijcells);
     fields.release_tmp(w_qr);
 
     // Get maximum CFL across all MPI tasks

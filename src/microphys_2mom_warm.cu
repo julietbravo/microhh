@@ -42,6 +42,10 @@ using namespace Micro_2mom_warm_functions;
 
 namespace micro
 {
+    using Fast_math::pow2;
+    using Fast_math::pow3;
+    using Fast_math::pow4;
+
     template<typename TF> __global__
     void remove_negative_values_g(
             TF* __restrict__ field,
@@ -80,7 +84,7 @@ namespace micro
         const TF x_star = 2.6e-10;       // SB06, list of symbols, same as UCLA-LES
         const TF k_cc   = 9.44e9;        // UCLA-LES (Long, 1974), 4.44e9 in SB06, p48
         const TF nu_c   = 1;             // SB06, Table 1., same as UCLA-LES
-        const TF kccxs  = k_cc / (TF(20.) * x_star) * (nu_c+2)*(nu_c+4) / pow(nu_c+1, TF(2));
+        const TF kccxs  = k_cc / (TF(20.) * x_star) * (nu_c+2)*(nu_c+4) / pow2(nu_c+1);
 
         if (i < iend && j < jend && k < kend)
         {
@@ -89,10 +93,10 @@ namespace micro
             {
                 const TF xc      = rho[k] * ql[ijk] / nc;    // Mean mass of cloud drops [kg]
                 const TF tau     = TF(1.) - ql[ijk] / (ql[ijk] + qr[ijk] + dsmall);    // SB06, Eq 5
-                const TF phi_au  = TF(600.) * pow(tau, TF(0.68)) * pow(TF(1.) - pow(tau, TF(0.68)), TF(3));    // UCLA-LES
+                const TF phi_au  = TF(600.) * pow(tau, TF(0.68)) * pow3(TF(1.) - pow(tau, TF(0.68)));    // UCLA-LES
                 //const TF phi_au  = 400. * pow(tau, 0.7) * pow(1. - pow(tau, 0.7), 3);    // SB06, Eq 6
-                const TF au_tend = rho[k] * kccxs * pow(ql[ijk], TF(2)) * pow(xc, TF(2)) *
-                                       (TF(1.) + phi_au / pow(TF(1.)-tau, TF(2))); // SB06, eq 4
+                const TF au_tend = rho[k] * kccxs * pow2(ql[ijk]) * pow2(xc) *
+                                       (TF(1.) + phi_au / pow2(TF(1.)-tau)); // SB06, eq 4
 
                 qrt[ijk]  += au_tend;
                 nrt[ijk]  += au_tend * rho[k] / x_star;
@@ -158,7 +162,7 @@ namespace micro
             if (ql[ijk] > ql_min<TF> && qr[ijk] > qr_min<TF>)
             {
                 const TF tau     = TF(1.) - ql[ijk] / (ql[ijk] + qr[ijk]); // SB06, Eq 5
-                const TF phi_ac  = pow(tau / (tau + TF(5e-5)), TF(4)); // SB06, Eq 8
+                const TF phi_ac  = pow4(tau / (tau + TF(5e-5))); // SB06, Eq 8
                 const TF ac_tend = k_cr * ql[ijk] *  qr[ijk] *
                     phi_ac * pow(rho_0<TF> / rho[k], TF(0.5)); // SB06, Eq 7
 
@@ -280,7 +284,7 @@ namespace micro
 
                 // Breakup
                 const TF dDr = dr - D_eq;
-                if(dr > 0.35e-3)
+                if(dr > TF(0.35e-3))
                 {
                     TF phi_br;
                     if(dr <= D_eq)
@@ -477,7 +481,7 @@ namespace sedimentation
         {
             const int ijk = i + j*icells + k*ijcells;
 
-            if (k == kend || cfl[ijk] < 1e-3)
+            if (k == kend || cfl[ijk] < TF(1e-3))
                 flux[ijk] = TF(0.);
             else
             {

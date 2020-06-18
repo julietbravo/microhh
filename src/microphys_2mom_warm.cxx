@@ -88,6 +88,10 @@ namespace
 // Microphysics calculated over entire 3D field
 namespace mp3d
 {
+    using Fast_math::pow2;
+    using Fast_math::pow3;
+    using Fast_math::pow4;
+
     // Autoconversion: formation of rain drop by coagulating cloud droplets
     // Seifert & Beheng scheme
     template<typename TF>
@@ -103,7 +107,7 @@ namespace mp3d
         const TF x_star = 2.6e-10;       // SB06, list of symbols, same as UCLA-LES
         const TF k_cc   = 9.44e9;        // UCLA-LES (Long, 1974), 4.44e9 in SB06, p48
         const TF nu_c   = 1;             // SB06, Table 1., same as UCLA-LES
-        const TF kccxs  = k_cc / (TF(20.) * x_star) * (nu_c+2)*(nu_c+4) / pow(nu_c+1, 2);
+        const TF kccxs  = k_cc / (TF(20.) * x_star) * (nu_c+2)*(nu_c+4) / pow2(nu_c+1);
 
         for (int k=kstart; k<kend; k++)
             for (int j=jstart; j<jend; j++)
@@ -115,10 +119,10 @@ namespace mp3d
                     {
                         const TF xc      = rho[k] * ql[ijk] / nc;    // Mean mass of cloud drops [kg]
                         const TF tau     = TF(1.) - ql[ijk] / (ql[ijk] + qr[ijk] + dsmall);    // SB06, Eq 5
-                        const TF phi_au  = TF(600.) * pow(tau, TF(0.68)) * pow(TF(1.) - pow(tau, TF(0.68)), 3);    // UCLA-LES
+                        const TF phi_au  = TF(600.) * pow(tau, TF(0.68)) * pow3(TF(1.) - pow(tau, TF(0.68)));    // UCLA-LES
                         //const TF phi_au  = 400. * pow(tau, 0.7) * pow(1. - pow(tau, 0.7), 3);    // SB06, Eq 6
-                        const TF au_tend = rho[k] * kccxs * pow(ql[ijk], 2) * pow(xc, 2) *
-                                               (TF(1.) + phi_au / pow(TF(1.)-tau, 2)); // SB06, eq 4
+                        const TF au_tend = rho[k] * kccxs * pow2(ql[ijk]) * pow2(xc) *
+                                               (TF(1.) + phi_au / pow2(TF(1.)-tau)); // SB06, eq 4
 
                         qrt[ijk]  += au_tend;
                         nrt[ijk]  += au_tend * rho[k] / x_star;
@@ -182,7 +186,7 @@ namespace mp3d
                     if(ql[ijk] > ql_min<TF> && qr[ijk] > qr_min<TF>)
                     {
                         const TF tau     = TF(1.) - ql[ijk] / (ql[ijk] + qr[ijk]); // SB06, Eq 5
-                        const TF phi_ac  = pow(tau / (tau + TF(5e-5)), 4); // SB06, Eq 8
+                        const TF phi_ac  = pow4(tau / (tau + TF(5e-5))); // SB06, Eq 8
                         const TF ac_tend = k_cr * ql[ijk] *  qr[ijk] * phi_ac * pow(rho_0<TF> / rho[k], TF(0.5)); // SB06, Eq 7
 
                         qrt[ijk]  += ac_tend;

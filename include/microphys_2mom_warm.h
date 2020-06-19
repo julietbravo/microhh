@@ -188,6 +188,10 @@ class Microphys_2mom_warm : public Microphys<TF>
         Warm_autoconversion_type sw_autoconversion;
         Warm_accretion_type sw_accretion;
 
+        // Factors to enhance/decrease autoconversion and accretion (ala IFS)
+        TF f_autoconversion;
+        TF f_accretion;
+
         std::vector<std::string> crosslist;                  // Cross-sections handled by this class
         std::vector<std::string> available_masks = {"qr"};   // Vector with the masks that fields can provide
 

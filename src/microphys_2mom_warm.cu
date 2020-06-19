@@ -71,7 +71,8 @@ namespace micro
             TF* const __restrict__ qrt, TF* const __restrict__ nrt,
             TF* const __restrict__ qtt, TF* const __restrict__ thlt,
             const TF* const __restrict__ qr,  const TF* const __restrict__ ql,
-            const TF* const __restrict__ rho, const TF* const __restrict__ exner, const TF Nc0,
+            const TF* const __restrict__ rho, const TF* const __restrict__ exner,
+            const TF Nc0, const TF f_autoconversion,
             const int istart, const int jstart, const int kstart,
             const int iend,   const int jend,   const int kend,
             const int jj, const int kk)
@@ -95,7 +96,7 @@ namespace micro
                 const TF tau     = TF(1.) - ql[ijk] / (ql[ijk] + qr[ijk] + dsmall);    // SB06, Eq 5
                 const TF phi_au  = TF(600.) * pow(tau, TF(0.68)) * pow3(TF(1.) - pow(tau, TF(0.68)));    // UCLA-LES
                 //const TF phi_au  = 400. * pow(tau, 0.7) * pow(1. - pow(tau, 0.7), 3);    // SB06, Eq 6
-                const TF au_tend = rho[k] * kccxs * pow2(ql[ijk]) * pow2(xc) *
+                const TF au_tend = f_autoconversion * rho[k] * kccxs * pow2(ql[ijk]) * pow2(xc) *
                                        (TF(1.) + phi_au / pow2(TF(1.)-tau)); // SB06, eq 4
 
                 qrt[ijk]  += au_tend;
@@ -113,7 +114,8 @@ namespace micro
             TF* const __restrict__ qrt, TF* const __restrict__ nrt,
             TF* const __restrict__ qtt, TF* const __restrict__ thlt,
             const TF* const __restrict__ qr,  const TF* const __restrict__ ql,
-            const TF* const __restrict__ rho, const TF* const __restrict__ exner, const TF Nc0,
+            const TF* const __restrict__ rho, const TF* const __restrict__ exner,
+            const TF Nc0, const TF f_autoconversion,
             const int istart, const int jstart, const int kstart,
             const int iend,   const int jend,   const int kend,
             const int jj, const int kk)
@@ -129,7 +131,8 @@ namespace micro
             const int ijk = i + j*jj + k*kk;
             if (ql[ijk] > ql_min<TF>)
             {
-                const TF au_tend = TF(1350) * pow(ql[ijk], TF(2.47)) * pow(Nc0*TF(1e-6), TF(-1.79));
+                const TF au_tend = f_autoconversion * TF(1350) * pow(ql[ijk], TF(2.47))
+                    * pow(Nc0*TF(1e-6), TF(-1.79));
 
                 qrt[ijk]  += au_tend;
                 nrt[ijk]  += au_tend * rho[k] / x_star;
@@ -146,6 +149,7 @@ namespace micro
             TF* const __restrict__ qrt, TF* const __restrict__ qtt, TF* const __restrict__ thlt,
             const TF* const __restrict__ qr,  const TF* const __restrict__ ql,
             const TF* const __restrict__ rho, const TF* const __restrict__ exner,
+            const TF f_accretion,
             const int istart, const int jstart, const int kstart,
             const int iend,   const int jend,   const int kend,
             const int jj, const int kk)
@@ -163,7 +167,7 @@ namespace micro
             {
                 const TF tau     = TF(1.) - ql[ijk] / (ql[ijk] + qr[ijk]); // SB06, Eq 5
                 const TF phi_ac  = pow4(tau / (tau + TF(5e-5))); // SB06, Eq 8
-                const TF ac_tend = k_cr * ql[ijk] *  qr[ijk] *
+                const TF ac_tend = f_accretion * k_cr * ql[ijk] *  qr[ijk] *
                     phi_ac * pow(rho_0<TF> / rho[k], TF(0.5)); // SB06, Eq 7
 
                 qrt[ijk]  += ac_tend;
@@ -180,6 +184,7 @@ namespace micro
             TF* const __restrict__ qrt, TF* const __restrict__ qtt, TF* const __restrict__ thlt,
             const TF* const __restrict__ qr,  const TF* const __restrict__ ql,
             const TF* const __restrict__ rho, const TF* const __restrict__ exner,
+            const TF f_accretion,
             const int istart, const int jstart, const int kstart,
             const int iend,   const int jend,   const int kend,
             const int jj, const int kk)
@@ -193,7 +198,7 @@ namespace micro
             const int ijk = i + j*jj + k*kk;
             if (ql[ijk] > ql_min<TF> && qr[ijk] > qr_min<TF>)
             {
-                const TF ac_tend = TF(67.) * pow(ql[ijk] * qr[ijk], TF(1.15));
+                const TF ac_tend = f_accretion * TF(67.) * pow(ql[ijk] * qr[ijk], TF(1.15));
 
                 qrt[ijk]  += ac_tend;
                 qtt[ijk]  -= ac_tend;
@@ -621,7 +626,8 @@ void Microphys_2mom_warm<TF>::exec(Thermo<TF>& thermo, const double dt, Stats<TF
         micro::autoconversion_sb_g<<<gridGPU, blockGPU>>>(
                 fields.st.at("qr")->fld_g, fields.st.at("nr")->fld_g,
                 fields.st.at("qt")->fld_g, fields.st.at("thl")->fld_g,
-                fields.sp.at("qr")->fld_g, ql->fld_g, fields.rhoref_g, exner, Nc0,
+                fields.sp.at("qr")->fld_g, ql->fld_g, fields.rhoref_g, exner,
+                Nc0, f_autoconversion,
                 gd.istart, gd.jstart, gd.kstart,
                 gd.iend,   gd.jend,   gd.kend,
                 gd.icells, gd.ijcells);
@@ -629,7 +635,8 @@ void Microphys_2mom_warm<TF>::exec(Thermo<TF>& thermo, const double dt, Stats<TF
         micro::autoconversion_kk_g<<<gridGPU, blockGPU>>>(
                 fields.st.at("qr")->fld_g, fields.st.at("nr")->fld_g,
                 fields.st.at("qt")->fld_g, fields.st.at("thl")->fld_g,
-                fields.sp.at("qr")->fld_g, ql->fld_g, fields.rhoref_g, exner, Nc0,
+                fields.sp.at("qr")->fld_g, ql->fld_g, fields.rhoref_g, exner,
+                Nc0, f_autoconversion,
                 gd.istart, gd.jstart, gd.kstart,
                 gd.iend,   gd.jend,   gd.kend,
                 gd.icells, gd.ijcells);
@@ -640,6 +647,7 @@ void Microphys_2mom_warm<TF>::exec(Thermo<TF>& thermo, const double dt, Stats<TF
         micro::accretion_sb_g<<<gridGPU, blockGPU>>>(
                 fields.st.at("qr")->fld_g, fields.st.at("qt")->fld_g, fields.st.at("thl")->fld_g,
                 fields.sp.at("qr")->fld_g, ql->fld_g, fields.rhoref_g, exner,
+                f_accretion,
                 gd.istart, gd.jstart, gd.kstart,
                 gd.iend,   gd.jend,   gd.kend,
                 gd.icells, gd.ijcells);
@@ -647,6 +655,7 @@ void Microphys_2mom_warm<TF>::exec(Thermo<TF>& thermo, const double dt, Stats<TF
         micro::accretion_kk_g<<<gridGPU, blockGPU>>>(
                 fields.st.at("qr")->fld_g, fields.st.at("qt")->fld_g, fields.st.at("thl")->fld_g,
                 fields.sp.at("qr")->fld_g, ql->fld_g, fields.rhoref_g, exner,
+                f_accretion,
                 gd.istart, gd.jstart, gd.kstart,
                 gd.iend,   gd.jend,   gd.kend,
                 gd.icells, gd.ijcells);

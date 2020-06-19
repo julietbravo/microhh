@@ -99,7 +99,8 @@ namespace mp3d
             TF* const restrict qrt, TF* const restrict nrt,
             TF* const restrict qtt, TF* const restrict thlt,
             const TF* const restrict qr,  const TF* const restrict ql,
-            const TF* const restrict rho, const TF* const restrict exner, const TF Nc0,
+            const TF* const restrict rho, const TF* const restrict exner,
+            const TF Nc0, const TF f_autoconversion,
             const int istart, const int jstart, const int kstart,
             const int iend,   const int jend,   const int kend,
             const int jj, const int kk)
@@ -121,7 +122,7 @@ namespace mp3d
                         const TF tau     = TF(1.) - ql[ijk] / (ql[ijk] + qr[ijk] + dsmall);    // SB06, Eq 5
                         const TF phi_au  = TF(600.) * pow(tau, TF(0.68)) * pow3(TF(1.) - pow(tau, TF(0.68)));    // UCLA-LES
                         //const TF phi_au  = 400. * pow(tau, 0.7) * pow(1. - pow(tau, 0.7), 3);    // SB06, Eq 6
-                        const TF au_tend = rho[k] * kccxs * pow2(ql[ijk]) * pow2(xc) *
+                        const TF au_tend = f_autoconversion * rho[k] * kccxs * pow2(ql[ijk]) * pow2(xc) *
                                                (TF(1.) + phi_au / pow2(TF(1.)-tau)); // SB06, eq 4
 
                         qrt[ijk]  += au_tend;
@@ -139,7 +140,8 @@ namespace mp3d
             TF* const restrict qrt, TF* const restrict nrt,
             TF* const restrict qtt, TF* const restrict thlt,
             const TF* const restrict qr,  const TF* const restrict ql,
-            const TF* const restrict rho, const TF* const restrict exner, const TF Nc0,
+            const TF* const restrict rho, const TF* const restrict exner,
+            const TF Nc0, const TF f_autoconversion,
             const int istart, const int jstart, const int kstart,
             const int iend,   const int jend,   const int kend,
             const int jj, const int kk)
@@ -154,7 +156,8 @@ namespace mp3d
                     const int ijk = i + j*jj + k*kk;
                     if(ql[ijk] > ql_min<TF>)
                     {
-                        const TF au_tend = TF(1350) * pow(ql[ijk], TF(2.47)) * pow(Nc0*TF(1e-6), TF(-1.79));
+                        const TF au_tend = f_autoconversion * TF(1350) * pow(ql[ijk], TF(2.47))
+                            * pow(Nc0*TF(1e-6), TF(-1.79));
 
                         qrt[ijk]  += au_tend;
                         nrt[ijk]  += au_tend * rho[k] / x_star;
@@ -171,6 +174,7 @@ namespace mp3d
             TF* const restrict qrt, TF* const restrict qtt, TF* const restrict thlt,
             const TF* const restrict qr,  const TF* const restrict ql,
             const TF* const restrict rho, const TF* const restrict exner,
+            const TF f_accretion,
             const int istart, const int jstart, const int kstart,
             const int iend,   const int jend,   const int kend,
             const int jj, const int kk)
@@ -187,7 +191,8 @@ namespace mp3d
                     {
                         const TF tau     = TF(1.) - ql[ijk] / (ql[ijk] + qr[ijk]); // SB06, Eq 5
                         const TF phi_ac  = pow4(tau / (tau + TF(5e-5))); // SB06, Eq 8
-                        const TF ac_tend = k_cr * ql[ijk] *  qr[ijk] * phi_ac * pow(rho_0<TF> / rho[k], TF(0.5)); // SB06, Eq 7
+                        const TF ac_tend = f_accretion * k_cr * ql[ijk] *  qr[ijk]
+                            * phi_ac * pow(rho_0<TF> / rho[k], TF(0.5)); // SB06, Eq 7
 
                         qrt[ijk]  += ac_tend;
                         qtt[ijk]  -= ac_tend;
@@ -203,6 +208,7 @@ namespace mp3d
             TF* const restrict qrt, TF* const restrict qtt, TF* const restrict thlt,
             const TF* const restrict qr,  const TF* const restrict ql,
             const TF* const restrict rho, const TF* const restrict exner,
+            const TF f_accretion,
             const int istart, const int jstart, const int kstart,
             const int iend,   const int jend,   const int kend,
             const int jj, const int kk)
@@ -215,7 +221,7 @@ namespace mp3d
                     const int ijk = i + j*jj + k*kk;
                     if(ql[ijk] > ql_min<TF> && qr[ijk] > qr_min<TF>)
                     {
-                        const TF ac_tend = TF(67.) * pow(ql[ijk] * qr[ijk], TF(1.15));
+                        const TF ac_tend = f_accretion * TF(67.) * pow(ql[ijk] * qr[ijk], TF(1.15));
 
                         qrt[ijk]  += ac_tend;
                         qtt[ijk]  -= ac_tend;
@@ -644,6 +650,10 @@ Microphys_2mom_warm<TF>::Microphys_2mom_warm(Master& masterin, Grid<TF>& gridin,
         throw std::runtime_error(error);
     }
 
+    // Factors to enhance/decrease autoconversion and accretion (ala IFS)
+    f_autoconversion = inputin.get_item<TF>("micro", "f_autoconversion", "", 1.);
+    f_accretion      = inputin.get_item<TF>("micro", "f_accretion", "", 1.);
+
     // Initialize the qr (rain water specific humidity) and nr (droplot number concentration) fields
     const std::string group_name = "thermo";
 
@@ -782,7 +792,8 @@ void Microphys_2mom_warm<TF>::exec(Thermo<TF>& thermo, const double dt, Stats<TF
                 fields.st.at("qr")->fld.data(), fields.st.at("nr")->fld.data(),
                 fields.st.at("qt")->fld.data(), fields.st.at("thl")->fld.data(),
                 fields.sp.at("qr")->fld.data(), ql->fld.data(),
-                fields.rhoref.data(), exner.data(), Nc0,
+                fields.rhoref.data(), exner.data(),
+                Nc0, f_autoconversion,
                 gd.istart, gd.jstart, gd.kstart,
                 gd.iend,   gd.jend,   gd.kend,
                 gd.icells, gd.ijcells);
@@ -791,7 +802,8 @@ void Microphys_2mom_warm<TF>::exec(Thermo<TF>& thermo, const double dt, Stats<TF
                 fields.st.at("qr")->fld.data(), fields.st.at("nr")->fld.data(),
                 fields.st.at("qt")->fld.data(), fields.st.at("thl")->fld.data(),
                 fields.sp.at("qr")->fld.data(), ql->fld.data(),
-                fields.rhoref.data(), exner.data(), Nc0,
+                fields.rhoref.data(), exner.data(),
+                Nc0, f_autoconversion,
                 gd.istart, gd.jstart, gd.kstart,
                 gd.iend,   gd.jend,   gd.kend,
                 gd.icells, gd.ijcells);
@@ -802,6 +814,7 @@ void Microphys_2mom_warm<TF>::exec(Thermo<TF>& thermo, const double dt, Stats<TF
                 fields.st.at("qr")->fld.data(), fields.st.at("qt")->fld.data(),
                 fields.st.at("thl")->fld.data(), fields.sp.at("qr")->fld.data(),
                 ql->fld.data(), fields.rhoref.data(), exner.data(),
+                f_accretion,
                 gd.istart, gd.jstart, gd.kstart,
                 gd.iend,   gd.jend,   gd.kend,
                 gd.icells, gd.ijcells);
@@ -810,6 +823,7 @@ void Microphys_2mom_warm<TF>::exec(Thermo<TF>& thermo, const double dt, Stats<TF
                 fields.st.at("qr")->fld.data(), fields.st.at("qt")->fld.data(),
                 fields.st.at("thl")->fld.data(), fields.sp.at("qr")->fld.data(),
                 ql->fld.data(), fields.rhoref.data(), exner.data(),
+                f_accretion,
                 gd.istart, gd.jstart, gd.kstart,
                 gd.iend,   gd.jend,   gd.kend,
                 gd.icells, gd.ijcells);
@@ -949,7 +963,8 @@ void Microphys_2mom_warm<TF>::exec_stats(Stats<TF>& stats, Thermo<TF>& thermo, c
             mp3d::autoconversion_sb(
                     qrt->fld.data(), nrt->fld.data(), qtt->fld.data(), thlt->fld.data(),
                     fields.sp.at("qr")->fld.data(), ql->fld.data(),
-                    fields.rhoref.data(), exner.data(), Nc0,
+                    fields.rhoref.data(), exner.data(),
+                    Nc0, f_autoconversion,
                     gd.istart, gd.jstart, gd.kstart,
                     gd.iend,   gd.jend,   gd.kend,
                     gd.icells, gd.ijcells);
@@ -957,7 +972,8 @@ void Microphys_2mom_warm<TF>::exec_stats(Stats<TF>& stats, Thermo<TF>& thermo, c
             mp3d::autoconversion_kk(
                     qrt->fld.data(), nrt->fld.data(), qtt->fld.data(), thlt->fld.data(),
                     fields.sp.at("qr")->fld.data(), ql->fld.data(),
-                    fields.rhoref.data(), exner.data(), Nc0,
+                    fields.rhoref.data(), exner.data(),
+                    Nc0, f_autoconversion,
                     gd.istart, gd.jstart, gd.kstart,
                     gd.iend,   gd.jend,   gd.kend,
                     gd.icells, gd.ijcells);
@@ -977,6 +993,7 @@ void Microphys_2mom_warm<TF>::exec_stats(Stats<TF>& stats, Thermo<TF>& thermo, c
             mp3d::accretion_sb(
                     qrt->fld.data(), qtt->fld.data(), thlt->fld.data(),
                     fields.sp.at("qr")->fld.data(), ql->fld.data(), fields.rhoref.data(), exner.data(),
+                    f_accretion,
                     gd.istart, gd.jstart, gd.kstart,
                     gd.iend,   gd.jend,   gd.kend,
                     gd.icells, gd.ijcells);
@@ -984,6 +1001,7 @@ void Microphys_2mom_warm<TF>::exec_stats(Stats<TF>& stats, Thermo<TF>& thermo, c
             mp3d::accretion_kk(
                     qrt->fld.data(), qtt->fld.data(), thlt->fld.data(),
                     fields.sp.at("qr")->fld.data(), ql->fld.data(), fields.rhoref.data(), exner.data(),
+                    f_accretion,
                     gd.istart, gd.jstart, gd.kstart,
                     gd.iend,   gd.jend,   gd.kend,
                     gd.icells, gd.ijcells);

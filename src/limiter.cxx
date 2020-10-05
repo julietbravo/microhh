@@ -26,7 +26,9 @@
 #include "grid.h"
 #include "fields.h"
 #include "stats.h"
+#include "constants.h"
 #include "limiter.h"
+#include "diff.h"
 
 template<typename TF>
 Limiter<TF>::Limiter(Master& masterin, Grid<TF>& gridin, Fields<TF>& fieldsin, Input& inputin) :
@@ -45,6 +47,8 @@ void Limiter<TF>::create(Stats<TF>& stats)
 {
     for (const std::string& s : limit_list)
         stats.add_tendency(*fields.at.at(s), "z", tend_name, tend_longname);
+
+    //** SvdL: potentially add also a statistics function to check whether minimum sgs-tke was applied or not.
 }
 
 namespace
@@ -68,6 +72,28 @@ namespace
                     at[ijk] += (a_new < TF(0.)) ? -a_new * dti : TF(0.);
                 }
     }
+
+    // This function produces a tendency for the sgstke12 to enforce a minimum amount of sgs-tke
+    // right now: set minimum to 1.e-3 for sgstke12 (so Constants::dsmall for sgstke itself)
+    template<typename TF>
+    void sgstke12_limiter(
+            TF* restrict at, const TF* restrict a, const TF dt,
+            const int istart, const int iend, const int jstart, const int jend, const int kstart, const int kend,
+            const int jj, const int kk)
+    {
+        const TF dti = TF(1.)/dt;
+
+        for (int k=kstart; k<kend; ++k)
+            for (int j=jstart; j<jend; ++j)
+                #pragma ivdep
+                for (int i=istart; i<iend; ++i)
+                {
+                    const int ijk = i + j*jj + k*kk;
+                    const TF a_new = a[ijk] + dt*at[ijk];
+                    at[ijk] += (a_new < TF(1.e-3)) ? -(a_new - TF(1.e-3)) * dti : TF(0.);
+                }
+    }
+
 }
 
 #ifndef USECUDA
@@ -84,6 +110,15 @@ void Limiter<TF>::exec(double dt, Stats<TF>& stats)
                 gd.icells, gd.ijcells);
 
         stats.calc_tend(*fields.at.at(name), tend_name);
+    }
+
+    // If Deardorff sgs-scheme is used: enforce minimum sgstke at all (sub)steps
+    if ( swdiff == "deardorff" )
+    {
+        sgstke12_limiter<TF>(
+               fields.st.at("sgstke12")->fld.data(), fields.sp.at("sgstke12")->fld.data(), dt,
+               gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+               gd.icells, gd.ijcells);
     }
 }
 #endif

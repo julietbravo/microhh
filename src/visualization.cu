@@ -27,6 +27,7 @@
 #include "fields.h"
 #include "timeloop.h"
 #include "visualization.h"
+#include "tools.h"
 
 #include <GL/glew.h>
 #include <GL/freeglut.h>
@@ -46,8 +47,12 @@ namespace
     void set_values(
             uchar4* image,
             const TF* const __restrict__ fld,
+            const int* const __restrict__ red,
+            const int* const __restrict__ green,
+            const int* const __restrict__ blue,
             const int width, const int height,
             const TF vmin, const TF vmax,
+            const bool inverse_colors,
             const int j_index,
             const int istart, const int iend,
             const int kstart, const int kend,
@@ -64,18 +69,26 @@ namespace
         const int ijk = (i+istart) + j_index*icells + (k+kstart)*ijcells;
 
         const TF rel_val = (fld[ijk] - vmin) / (vmax - vmin);
-        const unsigned char rel_val_i = clip(rel_val * 255);
+        unsigned char rel_val_i = clip(rel_val * 255);
 
-        image[ij].x = rel_val_i;
-        image[ij].y = rel_val_i;
-        image[ij].z = rel_val_i;
+        if (inverse_colors)
+            rel_val_i = 255-rel_val_i;
+
+        //printf("%i r=%i g=%i b=%i\n", rel_val_i, red[rel_val_i], green[rel_val_i], blue[rel_val_i]);
+
+        image[ij].x = red[rel_val_i];
+        image[ij].y = green[rel_val_i];
+        image[ij].z = blue[rel_val_i];
         image[ij].w = 255;
     }
 }
 
+
 template <typename TF>
 void Visualization<TF>::exec(Timeloop<TF>& timeloop)
 {
+    if (!sw_visualisation)
+        return;
     if (timeloop.in_substep())
         return;
 
@@ -102,10 +115,13 @@ void Visualization<TF>::exec(Timeloop<TF>& timeloop)
 
     const TF vmin = 300;
     const TF vmax = 303;
+    bool inverse_colors = false;
 
     set_values<TF><<<grid_gpu, block_gpu>>>(
             d_out, fields.ap.at("th")->fld_g,
-            width, height, vmin, vmax, gd.jstart,
+            cr_g, cg_g, cb_g,
+            width, height, vmin, vmax,
+            inverse_colors, gd.jstart,
             gd.istart, gd.iend,
             gd.kstart, gd.kend,
             gd.icells, gd.ijcells);
@@ -126,6 +142,20 @@ void Visualization<TF>::exec(Timeloop<TF>& timeloop)
 
     // Swap buffer to show updated image
     glutSwapBuffers();
+}
+
+template <typename TF>
+void Visualization<TF>::prepare_device()
+{
+    const int memsize = cr.size()*sizeof(int);
+
+    cuda_safe_call(cudaMalloc(&cr_g, memsize));
+    cuda_safe_call(cudaMalloc(&cg_g, memsize));
+    cuda_safe_call(cudaMalloc(&cb_g, memsize));
+
+    cuda_safe_call(cudaMemcpy(cr_g, cr.data(), memsize, cudaMemcpyHostToDevice));
+    cuda_safe_call(cudaMemcpy(cg_g, cg.data(), memsize, cudaMemcpyHostToDevice));
+    cuda_safe_call(cudaMemcpy(cb_g, cb.data(), memsize, cudaMemcpyHostToDevice));
 }
 
 template class Visualization<double>;

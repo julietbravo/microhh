@@ -46,16 +46,15 @@ Visualization<TF>::Visualization(
         Master& masterin, Grid<TF>& gridin, Fields<TF>& fieldsin, Input& inputin) :
     master(masterin), grid(gridin), fields(fieldsin)
 {
-}
-
-template <typename TF>
-void Visualization<TF>::init()
-{
+    sw_visualisation = inputin.get_item<bool>("visualisation", "swvisualisation", "", false);
 }
 
 template <typename TF>
 void Visualization<TF>::create()
 {
+    if (!sw_visualisation)
+        return;
+
     auto& gd = grid.get_grid_data();
     width = gd.itot;
     height = gd.ktot;
@@ -87,6 +86,9 @@ void Visualization<TF>::create()
     cudaGraphicsGLRegisterBuffer(
             &cuda_pbo_resource, pbo,
             cudaGraphicsMapFlagsWriteDiscard);
+
+    // Init device (colormaps)
+    prepare_device();
 }
 
 template <typename TF>

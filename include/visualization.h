@@ -23,11 +23,15 @@
 #ifndef VISUALIZATION_H
 #define VISUALIZATION_H
 
+#include <GL/glew.h>
+#include <GL/freeglut.h>
+
 class Master;
 class Input;
 template<typename> class Grid;
 template<typename> class Fields;
 template<typename> class Timeloop;
+
 
 template<typename TF>
 class Visualization
@@ -37,11 +41,21 @@ class Visualization
         ~Visualization();                                       // Destructor of the decay class.
 
         void init();
+        void create();
         void exec(Timeloop<TF>&);
 
     private:
         Master& master;
         Grid<TF>& grid;
         Fields<TF>& fields;
+
+        // Size of buffer
+        int width;
+        int height;
+
+        // Texture and pixel objects
+        GLuint pbo = 0;     // OpenGL pixel buffer object
+        GLuint tex = 0;     // OpenGL texture object
+        struct cudaGraphicsResource *cuda_pbo_resource;
 };
 #endif

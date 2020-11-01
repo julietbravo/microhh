@@ -28,30 +28,70 @@
 #include "timeloop.h"
 #include "visualization.h"
 
+#include <GL/glew.h>
+#include <GL/freeglut.h>
+
+#include <cuda_runtime.h>
+#include <cuda_gl_interop.h>
+
+namespace
+{
+    void display_func()
+    {
+    }
+}
+
 template<typename TF>
 Visualization<TF>::Visualization(
         Master& masterin, Grid<TF>& gridin, Fields<TF>& fieldsin, Input& inputin) :
     master(masterin), grid(gridin), fields(fieldsin)
-{
-    std::cout << "construct visu" << std::endl;
-}
-
-template <typename TF>
-Visualization<TF>::~Visualization()
 {
 }
 
 template <typename TF>
 void Visualization<TF>::init()
 {
-    std::cout << "init visu" << std::endl;
 }
 
 template <typename TF>
-void Visualization<TF>::exec(Timeloop<TF>& timeloop)
+void Visualization<TF>::create()
 {
-    if (!timeloop.in_substep())
-        std::cout << "exec visu" << std::endl;
+    auto& gd = grid.get_grid_data();
+    width = gd.itot;
+    height = gd.ktot;
+
+    char* argv[1];
+    int argc=1;
+    glutInit(&argc, argv);
+    glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE);
+    glutInitWindowSize(width, height);
+    glutCreateWindow("MicroHH realtime visualization :-D");
+    glewInit();
+
+    // Setup 2D orthographic projection
+    gluOrtho2D(0, width, height, 0);
+
+    // DUMMY -> not used as we don't use the
+    // glutMainLoop(), but something still needs to
+    // be set as the DisplayFunc...
+    glutDisplayFunc(display_func);
+
+    // Init pixel buffer
+    glGenBuffers(1, &pbo);
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
+    glBufferData(GL_PIXEL_UNPACK_BUFFER, 4*width*height*sizeof(GLubyte), 0, GL_STREAM_DRAW);
+    glGenTextures(1, &tex);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+    cudaGraphicsGLRegisterBuffer(
+            &cuda_pbo_resource, pbo,
+            cudaGraphicsMapFlagsWriteDiscard);
+}
+
+template <typename TF>
+Visualization<TF>::~Visualization()
+{
 }
 
 template class Visualization<double>;

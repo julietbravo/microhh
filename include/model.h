@@ -56,6 +56,8 @@ template<typename> class Column;
 template<typename> class Cross;
 template<typename> class Dump;
 
+template<typename> class Visualization;
+
 enum class Sim_mode;
 
 template<typename TF>
@@ -102,6 +104,8 @@ class Model
         std::shared_ptr<Column<TF>> column;
         std::shared_ptr<Cross<TF>> cross;
         std::shared_ptr<Dump<TF>> dump;
+
+        std::shared_ptr<Visualization<TF>> visu;
 
         Sim_mode sim_mode;
         std::string sim_name;

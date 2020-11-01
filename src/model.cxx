@@ -52,6 +52,7 @@
 #include "cross.h"
 #include "dump.h"
 #include "model.h"
+#include "visualization.h"
 
 #ifdef USECUDA
 #include <cuda_runtime_api.h>
@@ -139,6 +140,8 @@ Model<TF>::Model(Master& masterin, int argc, char *argv[]) :
 
         budget    = Budget<TF>::factory(master, *grid, *fields, *thermo, *diff, *advec, *force, *stats, *input);
 
+        visu      = std::make_shared<Visualization<TF>>(master, *grid, *fields, *input);
+
         // Parse the statistics masks
         add_statistics_masks();
     }
@@ -191,6 +194,8 @@ void Model<TF>::init()
     column->init(timeloop->get_ifactor());
     cross->init(timeloop->get_ifactor());
     dump->init(timeloop->get_ifactor());
+
+    visu->init();
 }
 
 template<typename TF>
@@ -228,7 +233,6 @@ void Model<TF>::load()
     stats->create(*timeloop, sim_name);
     column->create(*input, *timeloop, sim_name);
 
-
     // Load the fields, and create the field statistics
     fields->load(timeloop->get_iotime());
     fields->create_stats(*stats);
@@ -248,6 +252,8 @@ void Model<TF>::load()
     radiation->create(*input, *input_nc, *thermo, *stats, *column, *cross, *dump);
     decay->create(*input, *stats);
     limiter->create(*stats);
+
+    visu->create();
 
     // Cross and dump both need to be called at/near the
     // end of the create phase, as other classes register which
@@ -317,6 +323,9 @@ void Model<TF>::exec()
             // start the time loop
             while (true)
             {
+                // Update openGL visualization
+                visu->exec(*timeloop);
+
                 // Update the time dependent parameters.
                 boundary->update_time_dependent(*timeloop);
                 thermo  ->update_time_dependent(*timeloop);

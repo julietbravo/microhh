@@ -70,7 +70,7 @@ std::shared_ptr<Diff<TF>> Diff<TF>::factory(
     else if (swdiff == "smag2")
         return std::make_shared<Diff_smag2<TF>>(masterin, gridin, fieldsin, boundaryin, inputin);
     else if (swdiff == "deardorff")
-            return std::make_shared<Diff_smag2<TF>>(masterin, gridin, fieldsin, boundaryin, inputin);
+            return std::make_shared<Diff_deardorff<TF>>(masterin, gridin, fieldsin, boundaryin, inputin);
     else
     {
         std::string msg = swdiff + " is an illegal value for swdiff";

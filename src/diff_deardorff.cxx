@@ -1009,7 +1009,9 @@ Diff_deardorff<TF>::Diff_deardorff(Master& masterin, Grid<TF>& gridin, Fields<TF
 
     const std::string group_name = "sgstke";
 
-    fields.init_prognostic_field("sgstke12", "Square root of SGS TKE", "m s-1", group_name, gd.sloc); // As in Deardorff (1980) work with square root of sgs-tke
+    // As in Deardorff (1980) work with square root of sgs-tke:
+    fields.init_prognostic_field("sgstke12", "Square root of SGS TKE", "m s-1", group_name, gd.sloc);
+
     fields.init_diagnostic_field("evisc", "Eddy viscosity for momentum", "m2 s-1", group_name, gd.sloc);
 
     if (grid.get_spatial_order() != Grid_order::Second)
@@ -1109,7 +1111,7 @@ void Diff_deardorff<TF>::exec(Stats<TF>& stats, Thermo<TF>& thermo)
         if (boundary.get_switch() == "surface" || boundary.get_switch() == "surface_bulk")
             calc_evisc_heat<TF, Surface_model::Enabled>(
                               evisch_tmp->fld.data(), fields.sd.at("evisc")->fld.data(),
-                              fields.sd.at("sgstke12")->fld.data(), buoy_tmp->fld.data(),
+                              fields.sp.at("sgstke12")->fld.data(), buoy_tmp->fld.data(),
                               gd.z.data(), gd.dz.data(), gd.dx, gd.dy,
                               boundary.z0m, this->cn, this->ch1, this->ch2,
                               gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
@@ -1118,7 +1120,7 @@ void Diff_deardorff<TF>::exec(Stats<TF>& stats, Thermo<TF>& thermo)
         else
             calc_evisc_heat<TF, Surface_model::Disabled>(
                               evisch_tmp->fld.data(), fields.sd.at("evisc")->fld.data(),
-                              fields.sd.at("sgstke12")->fld.data(), buoy_tmp->fld.data(),
+                              fields.sp.at("sgstke12")->fld.data(), buoy_tmp->fld.data(),
                               gd.z.data(), gd.dz.data(), gd.dx, gd.dy,
                               boundary.z0m, this->cn, this->ch1, this->ch2,
                               gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
@@ -1487,7 +1489,6 @@ void Diff_deardorff<TF>::create_stats(Stats<TF>& stats)
     // Add variables to the statistics
     if (stats.get_switch())
     {
-
         // Always add statistics of eddy viscosity for momentum (!)
         stats.add_profs(*fields.sd.at("evisc"), "z", {"mean", "2"}, group_name);
 

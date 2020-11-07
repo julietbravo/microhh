@@ -50,14 +50,23 @@ namespace
 
     //** SvdL: I guess this one should be fine already?
     template <typename TF, Surface_model surface_model>
-    void calc_strain2(TF* restrict strain2,
-                      TF* restrict u, TF* restrict v, TF* restrict w,
-                      TF* restrict ufluxbot, TF* restrict vfluxbot,
-                      TF* restrict ustar, TF* restrict obuk,
-                      const TF* restrict z, const TF* restrict dzi, const TF* restrict dzhi,
-                      const TF dxi, const TF dyi,
-                      const int istart, const int iend, const int jstart, const int jend, const int kstart, const int kend,
-                      const int jj, const int kk)
+    void calc_strain2(
+            TF* const restrict strain2,
+            const TF* const restrict u,
+            const TF* const restrict v,
+            const TF* const restrict w,
+            const TF* const restrict ufluxbot,
+            const TF* const restrict vfluxbot,
+            const TF* const restrict ustar,
+            const TF* const restrict obuk,
+            const TF* const restrict z,
+            const TF* const restrict dzi,
+            const TF* const restrict dzhi,
+            const TF dxi, const TF dyi,
+            const int istart, const int iend,
+            const int jstart, const int jend,
+            const int kstart, const int kend,
+            const int jj, const int kk)
     {
         const int ii = 1;
         constexpr int k_offset = (surface_model == Surface_model::Disabled) ? 0 : 1;
@@ -241,17 +250,28 @@ namespace
     //** SvdL: Hetzelfde hier: ik snap niet helemaal wat er gebeurdt bij Surface_model::Disabled.
     //** Deze moet dus nog aangepast worden.
     template<typename TF, Surface_model surface_model>
-    void calc_evisc(TF* restrict evisc,
-                    TF* restrict sgstke12,
-                    TF* restrict u, TF* restrict v, TF* restrict w,  TF* restrict N2,
-                    TF* restrict ufluxbot, TF* restrict vfluxbot, TF* restrict bfluxbot,
-                    TF* restrict ustar, TF* restrict obuk,
-                    const TF* restrict z, const TF* restrict dz, const TF* restrict dzi,
-                    const TF dx, const TF dy,
-                    const TF z0m, const TF cn, const TF cm,
-                    const int istart, const int iend, const int jstart, const int jend, const int kstart, const int kend,
-                    const int icells, const int jcells, const int ijcells,
-                    Boundary_cyclic<TF>& boundary_cyclic)
+    void calc_evisc(
+            TF* const restrict evisc,
+            const TF* const restrict sgstke12,
+            const TF* const restrict u,
+            const TF* const restrict v,
+            const TF* const restrict w,
+            const TF* const restrict N2,
+            const TF* const restrict ufluxbot,
+            const TF* const restrict vfluxbot,
+            const TF* const restrict bfluxbot,
+            const TF* const restrict ustar,
+            const TF* const restrict obuk,
+            const TF* const restrict z,
+            const TF* const restrict dz,
+            const TF* const restrict dzi,
+            const TF dx, const TF dy,
+            const TF z0m, const TF cn, const TF cm,
+            const int istart, const int iend,
+            const int jstart, const int jend,
+            const int kstart, const int kend,
+            const int icells, const int jcells, const int ijcells,
+            Boundary_cyclic<TF>& boundary_cyclic)
     {
         const int jj = icells;
         const int kk = ijcells;
@@ -358,14 +378,21 @@ namespace
     }
 
     template<typename TF, Surface_model surface_model>
-    void calc_evisc_heat(TF* restrict evisch, TF* restrict evisc,
-                        TF* restrict sgstke12, TF* restrict N2,
-                        const TF* restrict z, const TF* restrict dz,
-                        const TF dx, const TF dy,
-                        const TF z0m, const TF cn, const TF ch1, const TF ch2,
-                        const int istart, const int iend, const int jstart, const int jend, const int kstart, const int kend,
-                        const int icells, const int jcells, const int ijcells,
-                        Boundary_cyclic<TF>& boundary_cyclic)
+    void calc_evisc_heat(
+            TF* const restrict evisch,
+            const TF* const restrict evisc,
+            const TF* const restrict sgstke12,
+            const TF* const restrict N2,
+            const TF* const restrict z,
+            const TF* const restrict dz,
+            const TF dx, const TF dy,
+            const TF z0m, const TF cn,
+            const TF ch1, const TF ch2,
+            const int istart, const int iend,
+            const int jstart, const int jend,
+            const int kstart, const int kend,
+            const int icells, const int jcells, const int ijcells,
+            Boundary_cyclic<TF>& boundary_cyclic)
     {
         const int jj = icells;
         const int kk = ijcells;
@@ -450,10 +477,15 @@ namespace
 
     //** SvdL: functions specifally for the balance of sgs tke are introduces here.
     template <typename TF>
-    void sgstke_shear_tend(TF* restrict at, TF* restrict a,
-                          TF* restrict evisc, TF* restrict strain2,
-                          const int istart, const int iend, const int jstart, const int jend, const int kstart, const int kend,
-                          const int jj, const int kk)
+    void sgstke_shear_tend(
+            TF* const restrict at,
+            const TF* const restrict a,
+            const TF* const restrict evisc,
+            const TF* const restrict strain2,
+            const int istart, const int iend,
+            const int jstart, const int jend,
+            const int kstart, const int kend,
+            const int jj, const int kk)
     {
         for (int k=kstart; k<kend; ++k)
             for (int j=jstart; j<jend; ++j)
@@ -471,10 +503,15 @@ namespace
     }
 
     template <typename TF>
-    void sgstke_buoy_tend(TF* restrict at, TF* restrict a,
-                          TF* restrict evisch, TF* restrict N2,
-                          const int istart, const int iend, const int jstart, const int jend, const int kstart, const int kend,
-                          const int jj, const int kk)
+    void sgstke_buoy_tend(
+            TF* const restrict at,
+            const TF* const restrict a,
+            const TF* const restrict evisch,
+            const TF* const restrict N2,
+            const int istart, const int iend,
+            const int jstart, const int jend,
+            const int kstart, const int kend,
+            const int jj, const int kk)
     {
         for (int k=kstart; k<kend; ++k)
             for (int j=jstart; j<jend; ++j)
@@ -490,13 +527,19 @@ namespace
     }
 
     template <typename TF>
-    void sgstke_diss_tend(TF* restrict sgstke12_tend, TF* restrict sgstke12,
-                          TF* restrict N2,
-                          const TF* restrict z, const TF* restrict dz,
-                          const TF dx, const TF dy,
-                          const TF z0m, const TF cn, const TF ce1, const TF ce2,
-                          const int istart, const int iend, const int jstart, const int jend, const int kstart, const int kend,
-                          const int jj, const int kk)
+    void sgstke_diss_tend(
+            TF* const restrict sgstke12_tend,
+            const TF* const restrict sgstke12,
+            const TF* const restrict N2,
+            const TF* restrict z,
+            const TF* restrict dz,
+            const TF dx, const TF dy,
+            const TF z0m, const TF cn,
+            const TF ce1, const TF ce2,
+            const int istart, const int iend,
+            const int jstart, const int jend,
+            const int kstart, const int kend,
+            const int jj, const int kk)
     {
       const TF n_mason = 2.;
       TF mlen ;
@@ -532,12 +575,17 @@ namespace
     }
 
     template <typename TF>
-    void sgstke_diss_tend_neutral(TF* restrict at, TF* restrict a,
-                                  const TF* restrict z, const TF* restrict dz,
-                                  const TF dx, const TF dy,
-                                  const TF z0m, const TF ce1, const TF ce2,
-                                  const int istart, const int iend, const int jstart, const int jend, const int kstart, const int kend,
-                                  const int jj, const int kk)
+    void sgstke_diss_tend_neutral(
+            TF* const restrict at,
+            const TF* const restrict a,
+            const TF* restrict z,
+            const TF* restrict dz,
+            const TF dx, const TF dy,
+            const TF z0m, const TF ce1, const TF ce2,
+            const int istart, const int iend,
+            const int jstart, const int jend,
+            const int kstart, const int kend,
+            const int jj, const int kk)
     {
         const TF n_mason = 2.;
 
@@ -563,15 +611,24 @@ namespace
     //**
 
     template <typename TF, Surface_model surface_model>
-    void diff_u(TF* restrict ut,
-                const TF* restrict u, const TF* restrict v, const TF* restrict w,
-                const TF* restrict dzi, const TF* restrict dzhi, const TF dxi, const TF dyi,
-                const TF* restrict evisc,
-                const TF* restrict fluxbot, const TF* restrict fluxtop,
-                const TF* restrict rhoref, const TF* restrict rhorefh,
-                const TF visc,
-                const int istart, const int iend, const int jstart, const int jend, const int kstart, const int kend,
-                const int jj, const int kk)
+    void diff_u(
+            TF* const restrict ut,
+            const TF* const restrict u,
+            const TF* const restrict v,
+            const TF* const restrict w,
+            const TF* const restrict dzi,
+            const TF* const restrict dzhi,
+            const TF dxi, const TF dyi,
+            const TF* const restrict evisc,
+            const TF* const restrict fluxbot,
+            const TF* const restrict fluxtop,
+            const TF* const restrict rhoref,
+            const TF* const restrict rhorefh,
+            const TF visc,
+            const int istart, const int iend,
+            const int jstart, const int jend,
+            const int kstart, const int kend,
+            const int jj, const int kk)
     {
         constexpr int k_offset = (surface_model == Surface_model::Disabled) ? 0 : 1;
 
@@ -656,16 +713,24 @@ namespace
     }
 
     template <typename TF, Surface_model surface_model>
-    void diff_v(TF* restrict vt,
-                const TF* restrict u, const TF* restrict v, const TF* restrict w,
-                const TF* restrict dzi, const TF* restrict dzhi, const TF dxi, const TF dyi,
-                const TF* restrict evisc,
-                TF* restrict fluxbot, TF* restrict fluxtop,
-                TF* restrict rhoref, TF* restrict rhorefh,
-                const TF visc,
-                const int istart, const int iend, const int jstart, const int jend, const int kstart, const int kend,
-                const int jj, const int kk)
-
+    void diff_v(
+            TF* const restrict vt,
+            const TF* const restrict u,
+            const TF* const restrict v,
+            const TF* const restrict w,
+            const TF* const restrict dzi,
+            const TF* const restrict dzhi,
+            const TF dxi, const TF dyi,
+            const TF* const restrict evisc,
+            const TF* const restrict fluxbot,
+            const TF* const restrict fluxtop,
+            const TF* const restrict rhoref,
+            const TF* const restrict rhorefh,
+            const TF visc,
+            const int istart, const int iend,
+            const int jstart, const int jend,
+            const int kstart, const int kend,
+            const int jj, const int kk)
     {
         constexpr int k_offset = (surface_model == Surface_model::Disabled) ? 0 : 1;
 
@@ -788,14 +853,22 @@ namespace
 
     //** SvdL: waarom wordt hier overal expliciet de moleculaire viscositeit opgeteld
     template <typename TF, Surface_model surface_model>
-    void diff_c(TF* restrict at, const TF* restrict a,
-                const TF* restrict dzi, const TF* restrict dzhi, const TF dxidxi, const TF dyidyi,
-                const TF* restrict evisc,
-                const TF* restrict fluxbot, const TF* restrict fluxtop,
-                const TF* restrict rhoref, const TF* restrict rhorefh,
-                const TF visc,
-                const int istart, const int iend, const int jstart, const int jend, const int kstart, const int kend,
-                const int jj, const int kk)
+    void diff_c(
+            TF* const restrict at,
+            const TF* const restrict a,
+            const TF* const restrict dzi,
+            const TF* const restrict dzhi,
+            const TF dxidxi, const TF dyidyi,
+            const TF* const restrict evisc,
+            const TF* const restrict fluxbot,
+            const TF* const restrict fluxtop,
+            const TF* const restrict rhoref,
+            const TF* const restrict rhorefh,
+            const TF visc,
+            const int istart, const int iend,
+            const int jstart, const int jend,
+            const int kstart, const int kend,
+            const int jj, const int kk)
     {
         constexpr int k_offset = (surface_model == Surface_model::Disabled) ? 0 : 1;
 
@@ -872,9 +945,15 @@ namespace
     }
 
     template<typename TF>
-    TF calc_dnmul(TF* restrict evisc, const TF* restrict dzi, const TF dxidxi, const TF dyidyi, const TF tPr,
-                  const int istart, const int iend, const int jstart, const int jend, const int kstart, const int kend,
-                  const int jj, const int kk)
+    TF calc_dnmul(
+            TF* const restrict evisc,
+            const TF* const restrict dzi,
+            const TF dxidxi, const TF dyidyi,
+            const TF tPr,
+            const int istart, const int iend,
+            const int jstart, const int jend,
+            const int kstart, const int kend,
+            const int jj, const int kk)
     {
         const TF tPrfac = std::min(TF(1.), tPr);
         TF dnmul = 0;
@@ -894,10 +973,14 @@ namespace
 
     template <typename TF, Surface_model surface_model>
     void calc_diff_flux_c(
-            TF* const restrict out, const TF* const restrict data, const TF* const restrict evisc,
+            TF* const restrict out,
+            const TF* const restrict data,
+            const TF* const restrict evisc,
             const TF* const restrict dzhi,
             const TF tPr, const TF visc,
-            const int istart, const int iend, const int jstart, const int jend, const int kstart, const int kend,
+            const int istart, const int iend,
+            const int jstart, const int jend,
+            const int kstart, const int kend,
             const int jj, const int kk)
     {
         constexpr int k_offset = (surface_model == Surface_model::Disabled) ? 0 : 1;
@@ -919,10 +1002,15 @@ namespace
 
     template <typename TF, Surface_model surface_model>
     void calc_diff_flux_u(
-            TF* const restrict out, const TF* const restrict data, const TF* const restrict w, const TF* const evisc,
+            TF* const restrict out,
+            const TF* const restrict data,
+            const TF* const restrict w,
+            const TF* const evisc,
             const TF dxi, const TF* const dzhi,
             const TF visc,
-            const int istart, const int iend, const int jstart, const int jend, const int kstart, const int kend,
+            const int istart, const int iend,
+            const int jstart, const int jend,
+            const int kstart, const int kend,
             const int icells, const int ijcells)
     {
         constexpr int k_offset = (surface_model == Surface_model::Disabled) ? 0 : 1;
@@ -944,10 +1032,15 @@ namespace
 
     template <typename TF, Surface_model surface_model>
     void calc_diff_flux_v(
-            TF* const restrict out, const TF* const restrict data, const TF* const restrict w, const TF* const evisc,
+            TF* const restrict out,
+            const TF* const restrict data,
+            const TF* const restrict w,
+            const TF* const evisc,
             const TF dyi, const TF* const dzhi,
             const TF visc,
-            const int istart, const int iend, const int jstart, const int jend, const int kstart, const int kend,
+            const int istart, const int iend,
+            const int jstart, const int jend,
+            const int kstart, const int kend,
             const int icells, const int ijcells)
     {
         constexpr int k_offset = (surface_model == Surface_model::Disabled) ? 0 : 1;
@@ -968,8 +1061,10 @@ namespace
 
     template<typename TF>
     void calc_diff_flux_bc(
-            TF* const restrict out, const TF* const restrict data,
-            const int istart, const int iend, const int jstart, const int jend, const int k,
+            TF* const restrict out,
+            const TF* const restrict data,
+            const int istart, const int iend,
+            const int jstart, const int jend, const int k,
             const int icells, const int ijcells)
     {
         for (int j=jstart; j<jend; ++j)
@@ -982,12 +1077,11 @@ namespace
             }
     }
 
-} // End namespace.
-
-//SPRING HIER
+}
 
 template<typename TF>
-Diff_deardorff<TF>::Diff_deardorff(Master& masterin, Grid<TF>& gridin, Fields<TF>& fieldsin, Boundary<TF>& boundaryin, Input& inputin) :
+Diff_deardorff<TF>::Diff_deardorff(
+        Master& masterin, Grid<TF>& gridin, Fields<TF>& fieldsin, Boundary<TF>& boundaryin, Input& inputin) :
     Diff<TF>(masterin, gridin, fieldsin, boundaryin, inputin),
     boundary_cyclic(master, grid),
     field3d_operators(master, grid, fields)
@@ -1110,22 +1204,22 @@ void Diff_deardorff<TF>::exec(Stats<TF>& stats, Thermo<TF>& thermo)
         // Recalculate the eddy diffusivity for heat and scalars and store in tmp field
         if (boundary.get_switch() == "surface" || boundary.get_switch() == "surface_bulk")
             calc_evisc_heat<TF, Surface_model::Enabled>(
-                              evisch_tmp->fld.data(), fields.sd.at("evisc")->fld.data(),
-                              fields.sp.at("sgstke12")->fld.data(), buoy_tmp->fld.data(),
-                              gd.z.data(), gd.dz.data(), gd.dx, gd.dy,
-                              boundary.z0m, this->cn, this->ch1, this->ch2,
-                              gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-                              gd.icells, gd.jcells, gd.ijcells,
-                              boundary_cyclic);
+                    evisch_tmp->fld.data(), fields.sd.at("evisc")->fld.data(),
+                    fields.sp.at("sgstke12")->fld.data(), buoy_tmp->fld.data(),
+                    gd.z.data(), gd.dz.data(), gd.dx, gd.dy,
+                    boundary.z0m, this->cn, this->ch1, this->ch2,
+                    gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+                    gd.icells, gd.jcells, gd.ijcells,
+                    boundary_cyclic);
         else
             calc_evisc_heat<TF, Surface_model::Disabled>(
-                              evisch_tmp->fld.data(), fields.sd.at("evisc")->fld.data(),
-                              fields.sp.at("sgstke12")->fld.data(), buoy_tmp->fld.data(),
-                              gd.z.data(), gd.dz.data(), gd.dx, gd.dy,
-                              boundary.z0m, this->cn, this->ch1, this->ch2,
-                              gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-                              gd.icells, gd.jcells, gd.ijcells,
-                              boundary_cyclic);
+                    evisch_tmp->fld.data(), fields.sd.at("evisc")->fld.data(),
+                    fields.sp.at("sgstke12")->fld.data(), buoy_tmp->fld.data(),
+                    gd.z.data(), gd.dz.data(), gd.dx, gd.dy,
+                    boundary.z0m, this->cn, this->ch1, this->ch2,
+                    gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+                    gd.icells, gd.jcells, gd.ijcells,
+                    boundary_cyclic);
     }
 
     if (boundary.get_switch() == "surface" || boundary.get_switch() == "surface_bulk")
@@ -1167,15 +1261,15 @@ void Diff_deardorff<TF>::exec(Stats<TF>& stats, Thermo<TF>& thermo)
             //** SvdL: is this string comparison correct?
             if( it.first == "sgstke12" ) // sgstke12 diffuses with Km
             {
-                  diff_c<TF, Surface_model::Enabled>(
-                          it.second->fld.data(), fields.sp.at(it.first)->fld.data(),
-                          gd.dzi.data(), gd.dzhi.data(), 1./(gd.dx*gd.dx), 1./(gd.dy*gd.dy),
-                          fields.sd.at("evisc")->fld.data(),
-                          fields.sp.at(it.first)->flux_bot.data(), fields.sp.at(it.first)->flux_top.data(),
-                          fields.rhoref.data(), fields.rhorefh.data(),
-                          fields.sp.at(it.first)->visc,
-                          gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-                          gd.icells, gd.ijcells);
+                diff_c<TF, Surface_model::Enabled>(
+                        it.second->fld.data(), fields.sp.at(it.first)->fld.data(),
+                        gd.dzi.data(), gd.dzhi.data(), 1./(gd.dx*gd.dx), 1./(gd.dy*gd.dy),
+                        fields.sd.at("evisc")->fld.data(),
+                        fields.sp.at(it.first)->flux_bot.data(), fields.sp.at(it.first)->flux_top.data(),
+                        fields.rhoref.data(), fields.rhorefh.data(),
+                        fields.sp.at(it.first)->visc,
+                        gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+                        gd.icells, gd.ijcells);
             }
             else // all other scalars, diffuse with Kh
             {
@@ -1245,15 +1339,15 @@ void Diff_deardorff<TF>::exec(Stats<TF>& stats, Thermo<TF>& thermo)
             //** SvdL: is this string comparison correct?
             if( it.first == "sgstke12" ) // sgstke12 diffuses with Km
             {
-                  diff_c<TF, Surface_model::Disabled>(
-                          it.second->fld.data(), fields.sp.at(it.first)->fld.data(),
-                          gd.dzi.data(), gd.dzhi.data(), 1./(gd.dx*gd.dx), 1./(gd.dy*gd.dy),
-                          fields.sd.at("evisc")->fld.data(),
-                          fields.sp.at(it.first)->flux_bot.data(), fields.sp.at(it.first)->flux_top.data(),
-                          fields.rhoref.data(), fields.rhorefh.data(),
-                          fields.sp.at(it.first)->visc,
-                          gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-                          gd.icells, gd.ijcells);
+                diff_c<TF, Surface_model::Disabled>(
+                        it.second->fld.data(), fields.sp.at(it.first)->fld.data(),
+                        gd.dzi.data(), gd.dzhi.data(), 1./(gd.dx*gd.dx), 1./(gd.dy*gd.dy),
+                        fields.sd.at("evisc")->fld.data(),
+                        fields.sp.at(it.first)->flux_bot.data(), fields.sp.at(it.first)->flux_top.data(),
+                        fields.rhoref.data(), fields.rhorefh.data(),
+                        fields.sp.at(it.first)->visc,
+                        gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+                        gd.icells, gd.ijcells);
             }
             else // all other scalars, diffuse with Kh
             {
@@ -1285,12 +1379,8 @@ void Diff_deardorff<TF>::exec(Stats<TF>& stats, Thermo<TF>& thermo)
         }
     }
 
-    // Release temporary field again
-    //if( thermo.get_switch() != "0" )
-    //{
-        fields.release_tmp(evisch_tmp);
-        fields.release_tmp(buoy_tmp)  ;
-    //}
+    fields.release_tmp(evisch_tmp);
+    fields.release_tmp(buoy_tmp)  ;
 
     stats.calc_tend(*fields.mt.at("u"), tend_name);
     stats.calc_tend(*fields.mt.at("v"), tend_name);
@@ -1391,13 +1481,13 @@ void Diff_deardorff<TF>::exec_viscosity(Thermo<TF>& thermo)
 
             // Calculate the eddy diffusivity for heat and scalars and store in tmp field
             calc_evisc_heat<TF, Surface_model::Enabled>(
-                              evisch_tmp->fld.data(), fields.sd.at("evisc")->fld.data(),
-                              fields.sp.at("sgstke12")->fld.data(), buoy_tmp->fld.data(),
-                              gd.z.data(), gd.dz.data(), gd.dx, gd.dy,
-                              boundary.z0m, this->cn, this->ch1, this->ch2,
-                              gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-                              gd.icells, gd.jcells, gd.ijcells,
-                              boundary_cyclic);
+                    evisch_tmp->fld.data(), fields.sd.at("evisc")->fld.data(),
+                    fields.sp.at("sgstke12")->fld.data(), buoy_tmp->fld.data(),
+                    gd.z.data(), gd.dz.data(), gd.dx, gd.dy,
+                    boundary.z0m, this->cn, this->ch1, this->ch2,
+                    gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+                    gd.icells, gd.jcells, gd.ijcells,
+                    boundary_cyclic);
         }
         else
         {
@@ -1415,30 +1505,28 @@ void Diff_deardorff<TF>::exec_viscosity(Thermo<TF>& thermo)
 
             // Calculate the eddy diffusivity for heat and scalars and store in tmp field
             calc_evisc_heat<TF, Surface_model::Disabled>(
-                              evisch_tmp->fld.data(), fields.sd.at("evisc")->fld.data(),
-                              fields.sp.at("sgstke12")->fld.data(), buoy_tmp->fld.data(),
-                              gd.z.data(), gd.dz.data(), gd.dx, gd.dy,
-                              boundary.z0m, this->cn, this->ch1, this->ch2,
-                              gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-                              gd.icells, gd.jcells, gd.ijcells,
-                              boundary_cyclic);
+                    evisch_tmp->fld.data(), fields.sd.at("evisc")->fld.data(),
+                    fields.sp.at("sgstke12")->fld.data(), buoy_tmp->fld.data(),
+                    gd.z.data(), gd.dz.data(), gd.dx, gd.dy,
+                    boundary.z0m, this->cn, this->ch1, this->ch2,
+                    gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+                    gd.icells, gd.jcells, gd.ijcells,
+                    boundary_cyclic);
         }
 
-
         sgstke_buoy_tend<TF>(
-                          fields.st.at("sgstke12")->fld.data(), fields.sp.at("sgstke12")->fld.data(),
-                          evisch_tmp->fld.data(), buoy_tmp->fld.data(),
-                          gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-                          gd.icells, gd.ijcells);
+                fields.st.at("sgstke12")->fld.data(), fields.sp.at("sgstke12")->fld.data(),
+                evisch_tmp->fld.data(), buoy_tmp->fld.data(),
+                gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+                gd.icells, gd.ijcells);
+
         sgstke_diss_tend<TF>(
-                          fields.st.at("sgstke12")->fld.data(), fields.sp.at("sgstke12")->fld.data(),
-                          buoy_tmp->fld.data(),
-                          gd.z.data(), gd.dz.data(), gd.dx, gd.dy,
-                          boundary.z0m, this->cn, this->ce1, this->ce2,
-                          gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-                          gd.icells, gd.ijcells);
-
-
+                fields.st.at("sgstke12")->fld.data(), fields.sp.at("sgstke12")->fld.data(),
+                buoy_tmp->fld.data(),
+                gd.z.data(), gd.dz.data(), gd.dx, gd.dy,
+                boundary.z0m, this->cn, this->ce1, this->ce2,
+                gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+                gd.icells, gd.ijcells);
 
         fields.release_tmp(buoy_tmp  );
         fields.release_tmp(evisch_tmp);
@@ -1446,10 +1534,10 @@ void Diff_deardorff<TF>::exec_viscosity(Thermo<TF>& thermo)
 
     // Already execute shear production, buoyancy destruction and dissipation of SGS-TKE here
     sgstke_shear_tend<TF>(
-                        fields.st.at("sgstke12")->fld.data(), fields.sp.at("sgstke12")->fld.data(),
-                        fields.sd.at("evisc")->fld.data(), str2_tmp->fld.data(),
-                        gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-                        gd.icells, gd.ijcells);
+            fields.st.at("sgstke12")->fld.data(), fields.sp.at("sgstke12")->fld.data(),
+            fields.sd.at("evisc")->fld.data(), str2_tmp->fld.data(),
+            gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+            gd.icells, gd.ijcells);
 
     //if ( thermo.get_switch() == "0")
     //{

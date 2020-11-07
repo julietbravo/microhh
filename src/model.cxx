@@ -378,7 +378,7 @@ void Model<TF>::exec()
                 boundary->set_ghost_cells_w(Boundary_w_type::Normal_type);
 
                 // Apply the limiter as the last tendency.
-                limiter->exec(timeloop->get_sub_time_step(), *stats);
+                limiter->exec(timeloop->get_sub_time_step(), *stats, *diff);
 
                 // Calculate the total tendency statistics, if necessary
                 for (auto& it: fields->at)

@@ -32,6 +32,7 @@ class Input;
 template<typename> class Grid;
 template<typename> class Fields;
 template<typename> class Stats;
+template<typename> class Diff;
 
 template<typename TF>
 class Limiter
@@ -41,7 +42,7 @@ class Limiter
         ~Limiter();                                       // Destructor of the decay class.
 
         void create(Stats<TF>&); // Read the profiles of the forces from the input.
-        void exec(double, Stats<TF>&); // Add the tendencies belonging to the decay processes.
+        void exec(double, Stats<TF>&, Diff<TF>&); // Add the tendencies belonging to the decay processes.
 
     private:
         Master& master;

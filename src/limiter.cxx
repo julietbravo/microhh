@@ -113,13 +113,13 @@ void Limiter<TF>::exec(double dt, Stats<TF>& stats)
     }
 
     // If Deardorff sgs-scheme is used: enforce minimum sgstke at all (sub)steps
-    if ( swdiff == "deardorff" )
-    {
-        sgstke12_limiter<TF>(
-               fields.st.at("sgstke12")->fld.data(), fields.sp.at("sgstke12")->fld.data(), dt,
-               gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-               gd.icells, gd.ijcells);
-    }
+    //if ( swdiff == "deardorff" )
+    //{
+    //    sgstke12_limiter<TF>(
+    //           fields.st.at("sgstke12")->fld.data(), fields.sp.at("sgstke12")->fld.data(), dt,
+    //           gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+    //           gd.icells, gd.ijcells);
+    //}
 }
 #endif
 

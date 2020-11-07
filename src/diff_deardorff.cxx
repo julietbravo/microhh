@@ -35,15 +35,16 @@
 #include "stats.h"
 #include "fast_math.h"
 
-#include "Diff_deardorff.h"
+#include "diff_deardorff.h"
 
 namespace
 {
     namespace most = Monin_obukhov;
     namespace fm = Fast_math;
 
+    // Minimum value of the eddy diffusivities (as in DALES)
     //** SvdL: what would be a suitable value here?
-    const TF mvisc = 1e-5; // minimum value of the eddy diffusivities (as in DALES)
+    template<typename TF> constexpr TF mvisc = 1e-5;
 
     enum class Surface_model {Enabled, Disabled};
 
@@ -149,93 +150,93 @@ namespace
                 }
     }
 
-    //** SvdL: Ik heb moeite met het aanpassen van deze functie. Specifiek, ik snap niet helemaal wat er gebeurdt bij Surface_model::Disabled.
-    //** Deze moet dus nog aangepast worden.
-    template <typename TF, Surface_model surface_model>
-    void calc_evisc_neutral(TF* restrict evisc,
-                            TF* restrict sgstke,
-                            TF* restrict u, TF* restrict v, TF* restrict w,
-                            TF* restrict ufluxbot, TF* restrict vfluxbot,
-                            const TF* restrict z, const TF* restrict dz, const TF* restrict dzhi, const TF z0m,
-                            const TF dx, const TF dy, const TF zsize,
-                            const TF cm, const TF cn, const TF mvisc, const TF visc,
-                            const int istart, const int iend, const int jstart, const int jend, const int kstart, const int kend,
-                            const int icells, const int jcells, const int ijcells,
-                            Boundary_cyclic<TF>& boundary_cyclic)
-    {
-        const int jj = icells;
-        const int kk = ijcells;
-
-        // Wall damping constant.
-        constexpr TF n_mason = TF(2.);
-        constexpr TF A_vandriest = TF(26.);
-
-        if (surface_model == Surface_model::Disabled)
-        {
-            for (int k=kstart; k<kend; ++k)
-            {
-                // const TF mlen_wall = Constants::kappa<TF>*std::min(z[k], zsize-z[k]);
-                const TF mlen_smag = cs*std::pow(dx*dy*dz[k], TF(1./3.));
-
-                for (int j=jstart; j<jend; ++j)
-                    #pragma ivdep
-                    for (int i=istart; i<iend; ++i)
-                    {
-                        const int ijk_bot = i + j*jj + kstart*kk;
-                        const int ijk_top = i + j*jj + kend*kk;
-                        const TF u_tau_bot = std::pow(
-                                fm::pow2( visc*(u[ijk_bot] - u[ijk_bot-kk] )*dzhi[kstart] )
-                              + fm::pow2( visc*(v[ijk_bot] - v[ijk_bot-kk] )*dzhi[kstart] ), TF(0.25) );
-                        const TF u_tau_top = std::pow(
-                                fm::pow2( visc*(u[ijk_top] - u[ijk_top-kk] )*dzhi[kend] )
-                              + fm::pow2( visc*(v[ijk_top] - v[ijk_top-kk] )*dzhi[kend] ), TF(0.25) );
-                        const TF fac_bot = TF(1.) - std::exp( -(       z[k] *u_tau_bot) / (A_vandriest*visc) );
-                        const TF fac_top = TF(1.) - std::exp( -((zsize-z[k])*u_tau_top) / (A_vandriest*visc) );
-                        const TF fac = std::min( fac_bot, fac_top );
-
-                        const int ijk = i + j*jj + k*kk;
-                        evisc[ijk] = fm::pow2(fac * mlen_smag) * std::sqrt(evisc[ijk]);
-                    }
-            }
-
-            // For a resolved wall the viscosity at the wall is needed. For now, assume that the eddy viscosity
-            // is mirrored around the surface.
-            const int kb = kstart;
-            const int kt = kend-1;
-            for (int j=0; j<jcells; ++j)
-                #pragma ivdep
-                for (int i=0; i<icells; ++i)
-                {
-                    const int ijkb = i + j*jj + kb*kk;
-                    const int ijkt = i + j*jj + kt*kk;
-                    evisc[ijkb-kk] = evisc[ijkb];
-                    evisc[ijkt+kk] = evisc[ijkt];
-                }
-        }
-        //** SvdL: this part below should be fine
-        else
-        {
-            for (int k=kstart; k<kend; ++k)
-            {
-                const TF mlen0 = std::pow(dx*dy*dz[k], TF(1./3.));
-
-                for (int j=jstart; j<jend; ++j)
-                    #pragma ivdep
-                    for (int i=istart; i<iend; ++i)
-                    {
-                      // Apply Mason's wall correction here, as in DALES
-                      fac = std::pow(TF(1.)/(TF(1.)/std::pow(fac, n_mason) + TF(1.)/(std::pow(Constants::kappa<TF>*(z[k]+z0m), n))), TF(1.)/n_mason);
-                      kvisc = cm * fac * sgstke12[ijk];
-
-                      // Also, as in DALES: enforce minimum eddy viscosity (mvisc)
-                      evisc[ijk] = std::max(kvisc, mvisc);
-
-                    }
-            }
-        }
-
-        boundary_cyclic.exec(evisc);
-    }
+//    //** SvdL: Ik heb moeite met het aanpassen van deze functie. Specifiek, ik snap niet helemaal wat er gebeurdt bij Surface_model::Disabled.
+//    //** Deze moet dus nog aangepast worden.
+//    template <typename TF, Surface_model surface_model>
+//    void calc_evisc_neutral(TF* restrict evisc,
+//                            TF* restrict sgstke,
+//                            TF* restrict u, TF* restrict v, TF* restrict w,
+//                            TF* restrict ufluxbot, TF* restrict vfluxbot,
+//                            const TF* restrict z, const TF* restrict dz, const TF* restrict dzhi, const TF z0m,
+//                            const TF dx, const TF dy, const TF zsize,
+//                            const TF cm, const TF cn, const TF visc,
+//                            const int istart, const int iend, const int jstart, const int jend, const int kstart, const int kend,
+//                            const int icells, const int jcells, const int ijcells,
+//                            Boundary_cyclic<TF>& boundary_cyclic)
+//    {
+//        const int jj = icells;
+//        const int kk = ijcells;
+//
+//        // Wall damping constant.
+//        constexpr TF n_mason = TF(2.);
+//        constexpr TF A_vandriest = TF(26.);
+//
+//        if (surface_model == Surface_model::Disabled)
+//        {
+//            for (int k=kstart; k<kend; ++k)
+//            {
+//                // const TF mlen_wall = Constants::kappa<TF>*std::min(z[k], zsize-z[k]);
+//                const TF mlen_smag = cs*std::pow(dx*dy*dz[k], TF(1./3.));
+//
+//                for (int j=jstart; j<jend; ++j)
+//                    #pragma ivdep
+//                    for (int i=istart; i<iend; ++i)
+//                    {
+//                        const int ijk_bot = i + j*jj + kstart*kk;
+//                        const int ijk_top = i + j*jj + kend*kk;
+//                        const TF u_tau_bot = std::pow(
+//                                fm::pow2( visc*(u[ijk_bot] - u[ijk_bot-kk] )*dzhi[kstart] )
+//                              + fm::pow2( visc*(v[ijk_bot] - v[ijk_bot-kk] )*dzhi[kstart] ), TF(0.25) );
+//                        const TF u_tau_top = std::pow(
+//                                fm::pow2( visc*(u[ijk_top] - u[ijk_top-kk] )*dzhi[kend] )
+//                              + fm::pow2( visc*(v[ijk_top] - v[ijk_top-kk] )*dzhi[kend] ), TF(0.25) );
+//                        const TF fac_bot = TF(1.) - std::exp( -(       z[k] *u_tau_bot) / (A_vandriest*visc) );
+//                        const TF fac_top = TF(1.) - std::exp( -((zsize-z[k])*u_tau_top) / (A_vandriest*visc) );
+//                        const TF fac = std::min( fac_bot, fac_top );
+//
+//                        const int ijk = i + j*jj + k*kk;
+//                        evisc[ijk] = fm::pow2(fac * mlen_smag) * std::sqrt(evisc[ijk]);
+//                    }
+//            }
+//
+//            // For a resolved wall the viscosity at the wall is needed. For now, assume that the eddy viscosity
+//            // is mirrored around the surface.
+//            const int kb = kstart;
+//            const int kt = kend-1;
+//            for (int j=0; j<jcells; ++j)
+//                #pragma ivdep
+//                for (int i=0; i<icells; ++i)
+//                {
+//                    const int ijkb = i + j*jj + kb*kk;
+//                    const int ijkt = i + j*jj + kt*kk;
+//                    evisc[ijkb-kk] = evisc[ijkb];
+//                    evisc[ijkt+kk] = evisc[ijkt];
+//                }
+//        }
+//        //** SvdL: this part below should be fine
+//        else
+//        {
+//            for (int k=kstart; k<kend; ++k)
+//            {
+//                const TF mlen0 = std::pow(dx*dy*dz[k], TF(1./3.));
+//
+//                for (int j=jstart; j<jend; ++j)
+//                    #pragma ivdep
+//                    for (int i=istart; i<iend; ++i)
+//                    {
+//                      // Apply Mason's wall correction here, as in DALES
+//                      fac = std::pow(TF(1.)/(TF(1.)/std::pow(fac, n_mason) + TF(1.)/(std::pow(Constants::kappa<TF>*(z[k]+z0m), n))), TF(1.)/n_mason);
+//                      kvisc = cm * fac * sgstke12[ijk];
+//
+//                      // Also, as in DALES: enforce minimum eddy viscosity (mvisc)
+//                      evisc[ijk] = std::max(kvisc, mvisc<TF>);
+//
+//                    }
+//            }
+//        }
+//
+//        boundary_cyclic.exec(evisc);
+//    }
 
     //** SvdL: Hetzelfde hier: ik snap niet helemaal wat er gebeurdt bij Surface_model::Disabled.
     //** Deze moet dus nog aangepast worden.
@@ -247,7 +248,7 @@ namespace
                     TF* restrict ustar, TF* restrict obuk,
                     const TF* restrict z, const TF* restrict dz, const TF* restrict dzi,
                     const TF dx, const TF dy,
-                    const TF z0m, const TF cn, const TF cm, const TF mvisc,
+                    const TF z0m, const TF cn, const TF cm,
                     const int istart, const int iend, const int jstart, const int jend, const int kstart, const int kend,
                     const int icells, const int jcells, const int ijcells,
                     Boundary_cyclic<TF>& boundary_cyclic)
@@ -255,44 +256,44 @@ namespace
         const int jj = icells;
         const int kk = ijcells;
 
-        //** SvdL: Still fix for resolved walls.
-        if (surface_model == Surface_model::Disabled)
-        {
-            for (int k=kstart; k<kend; ++k)
-            {
-                // calculate smagorinsky constant times filter width squared, do not use wall damping with resolved walls.
-                const TF mlen = std::pow(dx*dy*dz[k], TF(1./3.));
-                const TF fac = fm::pow2(mlen);
-
-                for (int j=jstart; j<jend; ++j)
-                    #pragma ivdep
-                    for (int i=istart; i<iend; ++i)
-                    {
-                        const int ijk = i + j*jj + k*kk;
-                        // Add the buoyancy production to the TKE
-                        TF RitPrratio = N2[ijk] / evisc[ijk] / tPr;
-                        RitPrratio = std::min(RitPrratio, TF(1.-Constants::dsmall));
-                        evisc[ijk] = fac * std::sqrt(evisc[ijk]) * std::sqrt(TF(1.)-RitPrratio);
-                    }
-            }
-
-            // For a resolved wall the viscosity at the wall is needed. For now, assume that the eddy viscosity
-            // is mirrored over the surface.
-            const int kb = kstart;
-            const int kt = kend-1;
-            for (int j=0; j<jcells; ++j)
-                #pragma ivdep
-                for (int i=0; i<icells; ++i)
-                {
-                    const int ijkb = i + j*jj + kb*kk;
-                    const int ijkt = i + j*jj + kt*kk;
-                    evisc[ijkb-kk] = evisc[ijkb];
-                    evisc[ijkt+kk] = evisc[ijkt];
-                }
-        }
-        //** SvdL: This one should be done.
-        else
-        {
+//        //** SvdL: Still fix for resolved walls.
+//        if (surface_model == Surface_model::Disabled)
+//        {
+//            for (int k=kstart; k<kend; ++k)
+//            {
+//                // calculate smagorinsky constant times filter width squared, do not use wall damping with resolved walls.
+//                const TF mlen = std::pow(dx*dy*dz[k], TF(1./3.));
+//                const TF fac = fm::pow2(mlen);
+//
+//                for (int j=jstart; j<jend; ++j)
+//                    #pragma ivdep
+//                    for (int i=istart; i<iend; ++i)
+//                    {
+//                        const int ijk = i + j*jj + k*kk;
+//                        // Add the buoyancy production to the TKE
+//                        TF RitPrratio = N2[ijk] / evisc[ijk] / tPr;
+//                        RitPrratio = std::min(RitPrratio, TF(1.-Constants::dsmall));
+//                        evisc[ijk] = fac * std::sqrt(evisc[ijk]) * std::sqrt(TF(1.)-RitPrratio);
+//                    }
+//            }
+//
+//            // For a resolved wall the viscosity at the wall is needed. For now, assume that the eddy viscosity
+//            // is mirrored over the surface.
+//            const int kb = kstart;
+//            const int kt = kend-1;
+//            for (int j=0; j<jcells; ++j)
+//                #pragma ivdep
+//                for (int i=0; i<icells; ++i)
+//                {
+//                    const int ijkb = i + j*jj + kb*kk;
+//                    const int ijkt = i + j*jj + kt*kk;
+//                    evisc[ijkb-kk] = evisc[ijkb];
+//                    evisc[ijkt+kk] = evisc[ijkt];
+//                }
+//        }
+//        //** SvdL: This one should be done.
+//        else
+//        {
             // Variables for the wall damping and length scales
             const TF n_mason = 2.;
             TF mlen ;
@@ -340,18 +341,18 @@ namespace
                             mlen = cn * sgstke12[ijk] / std::sqrt(N2[ijk]);
                         }
 
-                        fac  = std:min(mlen0, mlen);
+                        fac  = std::min(mlen0, mlen);
                         // Apply Mason's wall correction here, as in DALES
-                        fac = std::pow(TF(1.)/(TF(1.)/std::pow(fac, n_mason) + TF(1.)/(std::pow(Constants::kappa<TF>*(z[k]+z0m), n))), TF(1.)/n_mason);
+                        fac = std::pow(TF(1.)/(TF(1.)/std::pow(fac, n_mason) + TF(1.)/(std::pow(Constants::kappa<TF>*(z[k]+z0m), n_mason))), TF(1.)/n_mason);
                         kvisc = cm * fac * sgstke12[ijk];
 
                         // Formally, this is only Km (momentum). Kh is calculated when needed.
                         // Also, as in DALES: enforce minimum eddy viscosity (mvisc)
-                        evisc[ijk] = std::max(kvisc, mvisc);
+                        evisc[ijk] = std::max(kvisc, mvisc<TF>);
                     }
             }
 
-        }
+//        }
 
         boundary_cyclic.exec(evisc);
     }
@@ -361,7 +362,7 @@ namespace
                         TF* restrict sgstke12, TF* restrict N2,
                         const TF* restrict z, const TF* restrict dz,
                         const TF dx, const TF dy,
-                        const TF z0m, const TF cn, const TF ch1, const TF ch2, const TF mvisc,
+                        const TF z0m, const TF cn, const TF ch1, const TF ch2,
                         const int istart, const int iend, const int jstart, const int jend, const int kstart, const int kend,
                         const int icells, const int jcells, const int ijcells,
                         Boundary_cyclic<TF>& boundary_cyclic)
@@ -369,44 +370,44 @@ namespace
         const int jj = icells;
         const int kk = ijcells;
 
-        //** SvdL: Still fix for resolved walls!
-        if (surface_model == Surface_model::Disabled)
-        {
-            for (int k=kstart; k<kend; ++k)
-            {
-                // calculate smagorinsky constant times filter width squared, do not use wall damping with resolved walls.
-                const TF mlen = std::pow(dx*dy*dz[k], TF(1./3.));
-                const TF fac = fm::pow2(mlen);
-
-                for (int j=jstart; j<jend; ++j)
-                    #pragma ivdep
-                    for (int i=istart; i<iend; ++i)
-                    {
-                        const int ijk = i + j*jj + k*kk;
-                        // Add the buoyancy production to the TKE
-                        TF RitPrratio = N2[ijk] / evisc[ijk] / tPr;
-                        RitPrratio = std::min(RitPrratio, TF(1.-Constants::dsmall));
-                        evisc[ijk] = fac * std::sqrt(evisc[ijk]) * std::sqrt(TF(1.)-RitPrratio);
-                    }
-            }
-
-            // For a resolved wall the viscosity at the wall is needed. For now, assume that the eddy viscosity
-            // is mirrored over the surface.
-            const int kb = kstart;
-            const int kt = kend-1;
-            for (int j=0; j<jcells; ++j)
-                #pragma ivdep
-                for (int i=0; i<icells; ++i)
-                {
-                    const int ijkb = i + j*jj + kb*kk;
-                    const int ijkt = i + j*jj + kt*kk;
-                    evisc[ijkb-kk] = evisc[ijkb];
-                    evisc[ijkt+kk] = evisc[ijkt];
-                }
-        }
-        //** SvdL: This one should be done.
-        else
-        {
+//        //** SvdL: Still fix for resolved walls!
+//        if (surface_model == Surface_model::Disabled)
+//        {
+//            for (int k=kstart; k<kend; ++k)
+//            {
+//                // calculate smagorinsky constant times filter width squared, do not use wall damping with resolved walls.
+//                const TF mlen = std::pow(dx*dy*dz[k], TF(1./3.));
+//                const TF fac = fm::pow2(mlen);
+//
+//                for (int j=jstart; j<jend; ++j)
+//                    #pragma ivdep
+//                    for (int i=istart; i<iend; ++i)
+//                    {
+//                        const int ijk = i + j*jj + k*kk;
+//                        // Add the buoyancy production to the TKE
+//                        TF RitPrratio = N2[ijk] / evisc[ijk] / tPr;
+//                        RitPrratio = std::min(RitPrratio, TF(1.-Constants::dsmall));
+//                        evisc[ijk] = fac * std::sqrt(evisc[ijk]) * std::sqrt(TF(1.)-RitPrratio);
+//                    }
+//            }
+//
+//            // For a resolved wall the viscosity at the wall is needed. For now, assume that the eddy viscosity
+//            // is mirrored over the surface.
+//            const int kb = kstart;
+//            const int kt = kend-1;
+//            for (int j=0; j<jcells; ++j)
+//                #pragma ivdep
+//                for (int i=0; i<icells; ++i)
+//                {
+//                    const int ijkb = i + j*jj + kb*kk;
+//                    const int ijkt = i + j*jj + kt*kk;
+//                    evisc[ijkb-kk] = evisc[ijkb];
+//                    evisc[ijkt+kk] = evisc[ijkt];
+//                }
+//        }
+//        //** SvdL: This one should be done.
+//        else
+//        {
             // Variables for the wall damping and length scales
             const TF n_mason = 2.;
             TF mlen ;
@@ -431,18 +432,18 @@ namespace
                             mlen = cn * sgstke12[ijk] / std::sqrt(N2[ijk]);
                         }
 
-                        fac  = std:min(mlen0, mlen);
+                        fac  = std::min(mlen0, mlen);
                         // Apply Mason's wall correction here, as in DALES
-                        fac = std::pow(TF(1.)/(TF(1.)/std::pow(fac, n_mason) + TF(1.)/(std::pow(Constants::kappa<TF>*(z[k]+z0m), n))), TF(1.)/n_mason);
+                        fac = std::pow(TF(1.)/(TF(1.)/std::pow(fac, n_mason) + TF(1.)/(std::pow(Constants::kappa<TF>*(z[k]+z0m), n_mason))), TF(1.)/n_mason);
                         kvisc = (ch1 + ch2 * fac / mlen0 ) * evisc[ijk];
 
                         // Also, as in DALES: enforce minimum eddy viscosity (mvisc)
-                        evisch[ijk] = std::max(kvisc, mvisc);
+                        evisch[ijk] = std::max(kvisc, mvisc<TF>);
 
                     }
             }
 
-        }
+//        }
 
         boundary_cyclic.exec(evisch);
     }
@@ -489,11 +490,11 @@ namespace
     }
 
     template <typename TF>
-    void sgstke_diss_tend(TF* restrict at, TF* restrict a,
+    void sgstke_diss_tend(TF* restrict sgstke12_tend, TF* restrict sgstke12,
                           TF* restrict N2,
                           const TF* restrict z, const TF* restrict dz,
                           const TF dx, const TF dy,
-                          const TF cn, const TF ce1, const TF ce2,
+                          const TF z0m, const TF cn, const TF ce1, const TF ce2,
                           const int istart, const int iend, const int jstart, const int jend, const int kstart, const int kend,
                           const int jj, const int kk)
     {
@@ -519,13 +520,13 @@ namespace
                         mlen = cn * sgstke12[ijk] / std::sqrt(N2[ijk]);
                     }
 
-                    fac  = std:min(mlen0, mlen);
+                    fac  = std::min(mlen0, mlen);
                     // Apply Mason's wall correction here, as in DALES
-                    fac = std::pow(TF(1.)/(TF(1.)/std::pow(fac, n_mason) + TF(1.)/(std::pow(Constants::kappa<TF>*(z[k]+z0m), n))), TF(1.)/n_mason);
+                    fac = std::pow(TF(1.)/(TF(1.)/std::pow(fac, n_mason) + TF(1.)/(std::pow(Constants::kappa<TF>*(z[k]+z0m), n_mason))), TF(1.)/n_mason);
 
                     //** SvdL: dit is best raar, want waarom zou je l (fac) wel aanpassen d.m.v. Mason correctie, maar mlen0 niet. Zouden ze niet beiden aangepast moeten worden?
                     // Calculate dissipation of TKE based on Deardorff (1980)
-                    at[ijk] -= (ce1 + ce2 * fac / mlen0 ) * std::pow(a[ijk], TF(2.)) / fac / TF(2.);
+                    sgstke12_tend[ijk] -= (ce1 + ce2 * fac / mlen0 ) * std::pow(sgstke12[ijk], TF(2.)) / fac / TF(2.);
                 }
         }
     }
@@ -534,7 +535,7 @@ namespace
     void sgstke_diss_tend_neutral(TF* restrict at, TF* restrict a,
                                   const TF* restrict z, const TF* restrict dz,
                                   const TF dx, const TF dy,
-                                  const TF ce1, const TF ce2,
+                                  const TF z0m, const TF ce1, const TF ce2,
                                   const int istart, const int iend, const int jstart, const int jend, const int kstart, const int kend,
                                   const int jj, const int kk)
     {
@@ -545,7 +546,7 @@ namespace
             // Calculate geometric filter width, based on Deardorff (1980)
             const TF mlen0 = std::pow(dx*dy*dz[k], TF(1./3.));
             // Apply Mason's wall correction here, as in DALES
-            fac = std::pow(TF(1.)/(TF(1.)/std::pow(mlen0, n_mason) + TF(1.)/(std::pow(Constants::kappa<TF>*(z[k]+z0m), n))), TF(1.)/n_mason);
+            const TF fac = std::pow(TF(1.)/(TF(1.)/std::pow(mlen0, n_mason) + TF(1.)/(std::pow(Constants::kappa<TF>*(z[k]+z0m), n_mason))), TF(1.)/n_mason);
 
             for (int j=jstart; j<jend; ++j)
                 #pragma ivdep
@@ -1091,29 +1092,39 @@ void Diff_deardorff<TF>::create(Stats<TF>& stats)
 
 #ifndef USECUDA
 template<typename TF>
-void Diff_deardorff<TF>::exec(Stats<TF>& stats)
+void Diff_deardorff<TF>::exec(Stats<TF>& stats, Thermo<TF>& thermo)
 {
     auto& gd = grid.get_grid_data();
+
+    auto evisch_tmp = fields.get_tmp();
+    auto buoy_tmp   = fields.get_tmp();
 
     // Get a temp field, recalculate eddy viscosity for scalars (use new function)
     if( thermo.get_switch() != "0" )
     {
-        auto evisch_tmp = fields.get_tmp();
-        auto buoy_tmp   = fields.get_tmp();
         thermo.get_buoyancy_fluxbot(*buoy_tmp, false);
         thermo.get_thermo_field(*buoy_tmp, "N2", false, false);
 
         // Recalculate the eddy diffusivity for heat and scalars and store in tmp field
-        calc_evisc_heat<TF>(
-                          evisch_tmp->fld.data(), fields.sd.at("evisc")->fld.data(),
-                          fields.sd.at("sgstke12")->fld.data(), buoy_tmp->fld.data(),
-                          gd.z.data(), gd.dz.data(), gd.dx, gd.dy,
-                          boundary.z0m, this->cn, this->ch1, this->ch2, this->mvisc,
-                          gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-                          gd.icells, gd.ijcells,
-                          boundary_cyclic);
+        if (boundary.get_switch() == "surface" || boundary.get_switch() == "surface_bulk")
+            calc_evisc_heat<TF, Surface_model::Enabled>(
+                              evisch_tmp->fld.data(), fields.sd.at("evisc")->fld.data(),
+                              fields.sd.at("sgstke12")->fld.data(), buoy_tmp->fld.data(),
+                              gd.z.data(), gd.dz.data(), gd.dx, gd.dy,
+                              boundary.z0m, this->cn, this->ch1, this->ch2,
+                              gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+                              gd.icells, gd.jcells, gd.ijcells,
+                              boundary_cyclic);
+        else
+            calc_evisc_heat<TF, Surface_model::Disabled>(
+                              evisch_tmp->fld.data(), fields.sd.at("evisc")->fld.data(),
+                              fields.sd.at("sgstke12")->fld.data(), buoy_tmp->fld.data(),
+                              gd.z.data(), gd.dz.data(), gd.dx, gd.dy,
+                              boundary.z0m, this->cn, this->ch1, this->ch2,
+                              gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+                              gd.icells, gd.jcells, gd.ijcells,
+                              boundary_cyclic);
     }
-
 
     if (boundary.get_switch() == "surface" || boundary.get_switch() == "surface_bulk")
     {
@@ -1152,7 +1163,7 @@ void Diff_deardorff<TF>::exec(Stats<TF>& stats)
         for (auto it : fields.st)
         {
             //** SvdL: is this string comparison correct?
-            if( *it == "sgstke12" ) // sgstke12 diffuses with Km
+            if( it.first == "sgstke12" ) // sgstke12 diffuses with Km
             {
                   diff_c<TF, Surface_model::Enabled>(
                           it.second->fld.data(), fields.sp.at(it.first)->fld.data(),
@@ -1230,7 +1241,7 @@ void Diff_deardorff<TF>::exec(Stats<TF>& stats)
         for (auto it : fields.st)
         {
             //** SvdL: is this string comparison correct?
-            if( *it == "sgstke12" ) // sgstke12 diffuses with Km
+            if( it.first == "sgstke12" ) // sgstke12 diffuses with Km
             {
                   diff_c<TF, Surface_model::Disabled>(
                           it.second->fld.data(), fields.sp.at(it.first)->fld.data(),
@@ -1273,11 +1284,11 @@ void Diff_deardorff<TF>::exec(Stats<TF>& stats)
     }
 
     // Release temporary field again
-    if( thermo.get_switch() != "0" )
-    {
+    //if( thermo.get_switch() != "0" )
+    //{
         fields.release_tmp(evisch_tmp);
         fields.release_tmp(buoy_tmp)  ;
-    }
+    //}
 
     stats.calc_tend(*fields.mt.at("u"), tend_name);
     stats.calc_tend(*fields.mt.at("v"), tend_name);
@@ -1291,15 +1302,6 @@ void Diff_deardorff<TF>::exec_viscosity(Thermo<TF>& thermo)
 {
     auto& gd = grid.get_grid_data();
     auto str2_tmp   = fields.get_tmp(); // always store strain in temporary field
-
-    // Get neccessary temporary fields to store the buoyancy and eddy diffusivity for scalars
-    if( thermo.get_switch() != "0" )
-    {
-        auto buoy_tmp   = fields.get_tmp();
-        auto evisch_tmp = fields.get_tmp();
-        thermo.get_buoyancy_fluxbot(*buoy_tmp, false);
-        thermo.get_thermo_field(*buoy_tmp, "N2", false, false);
-    }
 
     //** SvdL: Looking at DALES, the shear_squared just appears to be 2*(strain squared)..
     // That would be a simple fix.. https://github.com/dalesteam/dales/blob/master/src/modsubgrid.f90
@@ -1328,111 +1330,152 @@ void Diff_deardorff<TF>::exec_viscosity(Thermo<TF>& thermo)
     // Start with retrieving the stability information
     if (thermo.get_switch() == "0")
     {
-         // Calculate eddy viscosity using MO at lowest model level
-        if (boundary.get_switch() == "surface" || boundary.get_switch() == "surface_bulk")
-            calc_evisc_neutral<TF, Surface_model::Enabled>(
-                    fields.sd.at("evisc")->fld.data(),
-                    fields.sd.at("sgstke12")->fld.data(),
-                    fields.mp.at("u")->fld.data(), fields.mp.at("v")->fld.data(), fields.mp.at("w")->fld.data(),
-                    fields.mp.at("u")->flux_bot.data(), fields.mp.at("v")->flux_bot.data(),
-                    gd.z.data(), gd.dz.data(), gd.dzhi.data(), boundary.z0m,
-                    gd.dx, gd.dy, gd.zsize,
-                    this->cm, this->cn, this->mvisc, fields.visc,
-                    gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-                    gd.icells, gd.jcells, gd.ijcells,
-                    boundary_cyclic);
+        //// Calculate eddy viscosity using MO at lowest model level
+        //if (boundary.get_switch() == "surface" || boundary.get_switch() == "surface_bulk")
+        //    calc_evisc_neutral<TF, Surface_model::Enabled>(
+        //            fields.sd.at("evisc")->fld.data(),
+        //            fields.sd.at("sgstke12")->fld.data(),
+        //            fields.mp.at("u")->fld.data(), fields.mp.at("v")->fld.data(), fields.mp.at("w")->fld.data(),
+        //            fields.mp.at("u")->flux_bot.data(), fields.mp.at("v")->flux_bot.data(),
+        //            gd.z.data(), gd.dz.data(), gd.dzhi.data(), boundary.z0m,
+        //            gd.dx, gd.dy, gd.zsize,
+        //            this->cm, this->cn, fields.visc,
+        //            gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+        //            gd.icells, gd.jcells, gd.ijcells,
+        //            boundary_cyclic);
 
-        // Calculate eddy viscosity assuming resolved walls
-        else
-            calc_evisc_neutral<TF, Surface_model::Disabled>(
-                    fields.sd.at("evisc")->fld.data(),
-                    fields.sd.at("sgstke12")->fld.data(),
-                    fields.mp.at("u")->fld.data(), fields.mp.at("v")->fld.data(), fields.mp.at("w")->fld.data(),
-                    fields.mp.at("u")->flux_bot.data(), fields.mp.at("v")->flux_bot.data(),
-                    gd.z.data(), gd.dz.data(), gd.dzhi.data(), boundary.z0m,
-                    gd.dx, gd.dy, gd.zsize,
-                    this->cm, this->cn, this->mvisc, fields.visc,
-                    gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-                    gd.icells, gd.jcells, gd.ijcells,
-                    boundary_cyclic);
+        //// Calculate eddy viscosity assuming resolved walls
+        //else
+        //    calc_evisc_neutral<TF, Surface_model::Disabled>(
+        //            fields.sd.at("evisc")->fld.data(),
+        //            fields.sd.at("sgstke12")->fld.data(),
+        //            fields.mp.at("u")->fld.data(), fields.mp.at("v")->fld.data(), fields.mp.at("w")->fld.data(),
+        //            fields.mp.at("u")->flux_bot.data(), fields.mp.at("v")->flux_bot.data(),
+        //            gd.z.data(), gd.dz.data(), gd.dzhi.data(), boundary.z0m,
+        //            gd.dx, gd.dy, gd.zsize,
+        //            this->cm, this->cn, fields.visc,
+        //            gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+        //            gd.icells, gd.jcells, gd.ijcells,
+        //            boundary_cyclic);
+
+        //sgstke_diss_tend_neutral<TF>(
+        //                          fields.st.at("sgstke12")->fld.data(), fields.sp.at("sgstke12")->fld.data(),
+        //                          gd.z.data(), gd.dz.data(), gd.dx, gd.dy,
+        //                          boundary.z0m, this->ce1, this->ce2,
+        //                          gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+        //                          gd.icells, gd.ijcells);
     }
     // assume buoyancy calculation is needed
     else
     {
+        auto buoy_tmp   = fields.get_tmp();
+        auto evisch_tmp = fields.get_tmp();
+        thermo.get_buoyancy_fluxbot(*buoy_tmp, false);
+        thermo.get_thermo_field(*buoy_tmp, "N2", false, false);
+
         if (boundary.get_switch() == "surface" || boundary.get_switch() == "surface_bulk")
+        {
             calc_evisc<TF, Surface_model::Enabled>(
-                    fields.sd.at("evisc")->fld.data(),
+                    fields.sd.at("evisc")->fld.data(), fields.sp.at("sgstke12")->fld.data(),
                     fields.mp.at("u")->fld.data(), fields.mp.at("v")->fld.data(), fields.mp.at("w")->fld.data(), buoy_tmp->fld.data(),
                     fields.mp.at("u")->flux_bot.data(), fields.mp.at("v")->flux_bot.data(), buoy_tmp->flux_bot.data(),
                     boundary.ustar.data(), boundary.obuk.data(),
                     gd.z.data(), gd.dz.data(), gd.dzi.data(),
                     gd.dx, gd.dy,
-                    boundary.z0m, this->cn, this->cm, this->mvisc,
+                    boundary.z0m, this->cn, this->cm,
                     gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
                     gd.icells, gd.jcells, gd.ijcells,
                     boundary_cyclic);
+
+            // Calculate the eddy diffusivity for heat and scalars and store in tmp field
+            calc_evisc_heat<TF, Surface_model::Enabled>(
+                              evisch_tmp->fld.data(), fields.sd.at("evisc")->fld.data(),
+                              fields.sp.at("sgstke12")->fld.data(), buoy_tmp->fld.data(),
+                              gd.z.data(), gd.dz.data(), gd.dx, gd.dy,
+                              boundary.z0m, this->cn, this->ch1, this->ch2,
+                              gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+                              gd.icells, gd.jcells, gd.ijcells,
+                              boundary_cyclic);
+        }
         else
+        {
             calc_evisc<TF, Surface_model::Disabled>(
-                    fields.sd.at("evisc")->fld.data(),
+                    fields.sd.at("evisc")->fld.data(), fields.sp.at("sgstke12")->fld.data(),
                     fields.mp.at("u")->fld.data(), fields.mp.at("v")->fld.data(), fields.mp.at("w")->fld.data(), buoy_tmp->fld.data(),
                     fields.mp.at("u")->flux_bot.data(), fields.mp.at("v")->flux_bot.data(), buoy_tmp->flux_bot.data(),
                     nullptr, nullptr,
                     gd.z.data(), gd.dz.data(), gd.dzi.data(),
                     gd.dx, gd.dy,
-                    boundary.z0m, this->cn, this->cm, this->mvisc,
+                    boundary.z0m, this->cn, this->cm,
                     gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
                     gd.icells, gd.jcells, gd.ijcells,
                     boundary_cyclic);
 
-        // Calculate the eddy diffusivity for heat and scalars and store in tmp field
-        calc_evisc_heat<TF>(
-                          evisch_tmp->fld.data(), fields.sd.at("evisc")->fld.data(),
-                          fields.sd.at("sgstke12")->fld.data(), buoy_tmp->fld.data(),
-                          gd.z.data(), gd.dz.data(), gd.dx, gd.dy,
-                          boundary.z0m, this->cn, this->ch1, this->ch2, this->mvisc,
-                          gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-                          gd.icells, gd.ijcells,
-                          boundary_cyclic);
-    }
+            // Calculate the eddy diffusivity for heat and scalars and store in tmp field
+            calc_evisc_heat<TF, Surface_model::Disabled>(
+                              evisch_tmp->fld.data(), fields.sd.at("evisc")->fld.data(),
+                              fields.sp.at("sgstke12")->fld.data(), buoy_tmp->fld.data(),
+                              gd.z.data(), gd.dz.data(), gd.dx, gd.dy,
+                              boundary.z0m, this->cn, this->ch1, this->ch2,
+                              gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+                              gd.icells, gd.jcells, gd.ijcells,
+                              boundary_cyclic);
+        }
 
-    // Already execute shear production, buoyancy destruction and dissipation of SGS-TKE here
-    sgstke_shear_tend<TF>(
-                        fields.st.at("sgstke12")->fld.data(), fields.sd.at("sgstke12"),
-                        fields.sd.at("evisc")->fld.data(), str2_tmp->fld.data(),
-                        gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-                        gd.icells, gd.ijcells);
 
-    if ( thermo.get_switch() == "0")
-    {
-        sgstke_diss_tend_neutral<TF>(
-                                  fields.st.at("sgstke12")->fld.data(), fields.sd.at("sgstke12")->fld.data(),
-                                  gd.z.data(), gd.dz.data(), gd.dx, gd.dy,
-                                  this->ce1, this->ce2,
-                                  gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-                                  gd.icells, gd.ijcells);
-    }
-    else
-    {
         sgstke_buoy_tend<TF>(
-                          fields.st.at("sgstke12")->fld.data(), fields.sd.at("sgstke12")->fld.data(),
+                          fields.st.at("sgstke12")->fld.data(), fields.sp.at("sgstke12")->fld.data(),
                           evisch_tmp->fld.data(), buoy_tmp->fld.data(),
                           gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
                           gd.icells, gd.ijcells);
         sgstke_diss_tend<TF>(
-                          fields.st.at("sgstke12")->fld.data(), fields.sd.at("sgstke12")->fld.data(),
+                          fields.st.at("sgstke12")->fld.data(), fields.sp.at("sgstke12")->fld.data(),
                           buoy_tmp->fld.data(),
                           gd.z.data(), gd.dz.data(), gd.dx, gd.dy,
-                          this->cn, this->ce1, this->ce2,
+                          boundary.z0m, this->cn, this->ce1, this->ce2,
                           gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
                           gd.icells, gd.ijcells);
+
+
+
+        fields.release_tmp(buoy_tmp  );
+        fields.release_tmp(evisch_tmp);
     }
+
+    // Already execute shear production, buoyancy destruction and dissipation of SGS-TKE here
+    sgstke_shear_tend<TF>(
+                        fields.st.at("sgstke12")->fld.data(), fields.sp.at("sgstke12")->fld.data(),
+                        fields.sd.at("evisc")->fld.data(), str2_tmp->fld.data(),
+                        gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+                        gd.icells, gd.ijcells);
+
+    //if ( thermo.get_switch() == "0")
+    //{
+    //    sgstke_diss_tend_neutral<TF>(
+    //                              fields.st.at("sgstke12")->fld.data(), fields.sp.at("sgstke12")->fld.data(),
+    //                              gd.z.data(), gd.dz.data(), gd.dx, gd.dy,
+    //                              boundary.z0m, this->ce1, this->ce2,
+    //                              gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+    //                              gd.icells, gd.ijcells);
+    //}
+    //else
+    //{
+    //    sgstke_buoy_tend<TF>(
+    //                      fields.st.at("sgstke12")->fld.data(), fields.sp.at("sgstke12")->fld.data(),
+    //                      evisch_tmp->fld.data(), buoy_tmp->fld.data(),
+    //                      gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+    //                      gd.icells, gd.ijcells);
+    //    sgstke_diss_tend<TF>(
+    //                      fields.st.at("sgstke12")->fld.data(), fields.sp.at("sgstke12")->fld.data(),
+    //                      buoy_tmp->fld.data(),
+    //                      gd.z.data(), gd.dz.data(), gd.dx, gd.dy,
+    //                      boundary.z0m, this->cn, this->ce1, this->ce2,
+    //                      gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+    //                      gd.icells, gd.ijcells);
+    //}
 
     // Release temporary fields for now
     fields.release_tmp(str2_tmp);
-    if( thermo.get_switch() != "0")
-        fields.release_tmp(buoy_tmp  );
-        fields.release_tmp(evisch_tmp);
-
 }
 #endif
 
@@ -1452,11 +1495,11 @@ void Diff_deardorff<TF>::create_stats(Stats<TF>& stats)
         stats.add_prof("sgstke12_shear", "Shear production term in (SGS TKE)^(1/2) budget", "m2 s-3", "z" , group_name);
         stats.add_prof("sgstke12_diss", "Dissipation term in (SGS TKE)^(1/2) budget", "m2 s-3", "z" , group_name);
 
-        if ( thermo.get_switch() != "0" )
-        {
+        //if ( thermo.get_switch() != "0" )
+        //{
             stats.add_prof("sgstke12_buoy", "Buoyancy destruction term in (SGS TKE)^(1/2) budget", "m2 s-3", "z" , group_name);
             stats.add_prof("evisc_h", "Eddy diffusivity for heat and scalars", "m2 s-1", "z" , group_name);
-        }
+        //}
 
         stats.add_tendency(*fields.mt.at("u"), "z", tend_name, tend_longname);
         stats.add_tendency(*fields.mt.at("v"), "z", tend_name, tend_longname);
@@ -1485,80 +1528,80 @@ void Diff_deardorff<TF>::diff_flux(Field3d<TF>& restrict out, const Field3d<TF>&
 {
     auto& gd = grid.get_grid_data();
 
-    // Get a temp field, recalculate eddy viscosity for scalars (use new function)
-    //** SvdL: should not exceed standard number of temporary fields (that is 4)?
-    if( thermo.get_switch() != "0" )
-    {
-        auto evisch_tmp = fields.get_tmp();
-        auto buoy_tmp   = fields.get_tmp();
-        thermo.get_buoyancy_fluxbot(*buoy_tmp, false);
-        thermo.get_thermo_field(*buoy_tmp, "N2", false, false);
-
-        // Recalculate the eddy diffusivity for heat and scalars and store in tmp field
-        calc_evisc_heat<TF>(
-                          evisch_tmp->fld.data(), fields.sd.at("evisc")->fld.data(),
-                          fields.sd.at("sgstke12")->fld.data(), buoy_tmp->fld.data(),
-                          gd.z.data(), gd.dz.data(), gd.dx, gd.dy,
-                          boundary.z0m, this->cn, this->ch1, this->ch2, this->mvisc,
-                          gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-                          gd.icells, gd.ijcells,
-                          boundary_cyclic);
-    }
-
-    if (boundary.get_switch() == "surface" || boundary.get_switch() == "surface_bulk")
-    {
-        // Calculate the boundary fluxes.
-        calc_diff_flux_bc(out.fld.data(), fld_in.flux_bot.data(), gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.icells, gd.ijcells);
-        calc_diff_flux_bc(out.fld.data(), fld_in.flux_top.data(), gd.istart, gd.iend, gd.jstart, gd.jend, gd.kend  , gd.icells, gd.ijcells);
-
-        // Calculate the interior.
-        if (fld_in.loc[0] == 1)
-            calc_diff_flux_u<TF, Surface_model::Enabled>(
-                    out.fld.data(), fld_in.fld.data(), fields.mp.at("w")->fld.data(), fields.sd.at("evisc")->fld.data(),
-                    gd.dxi, gd.dzhi.data(),
-                    fields.visc,
-                    gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-                    gd.icells, gd.ijcells);
-        else if (fld_in.loc[1] == 1)
-            calc_diff_flux_v<TF, Surface_model::Enabled>(
-                    out.fld.data(), fld_in.fld.data(), fields.mp.at("w")->fld.data(), fields.sd.at("evisc")->fld.data(),
-                    gd.dyi, gd.dzhi.data(),
-                    fields.visc,
-                    gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-                    gd.icells, gd.ijcells);
-        else
-            calc_diff_flux_c<TF, Surface_model::Enabled>(
-                    out.fld.data(), fld_in.fld.data(), fields.sd.at("evisc")->fld.data(),
-                    gd.dzhi.data(),
-                    tPr, fld_in.visc,
-                    gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-                    gd.icells, gd.ijcells);
-    }
-    else
-    {
-        // Include the wall.
-        if (fld_in.loc[0] == 1)
-            calc_diff_flux_u<TF, Surface_model::Disabled>(
-                    out.fld.data(), fld_in.fld.data(), fields.mp.at("w")->fld.data(), fields.sd.at("evisc")->fld.data(),
-                    gd.dxi, gd.dzhi.data(),
-                    fields.visc,
-                    gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-                    gd.icells, gd.ijcells);
-        else if (fld_in.loc[1] == 1)
-            calc_diff_flux_v<TF, Surface_model::Disabled>(
-                    out.fld.data(), fld_in.fld.data(), fields.mp.at("w")->fld.data(), fields.sd.at("evisc")->fld.data(),
-                    gd.dyi, gd.dzhi.data(),
-                    fields.visc,
-                    gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-                    gd.icells, gd.ijcells);
-        else
-            calc_diff_flux_c<TF, Surface_model::Disabled>(
-                    out.fld.data(), fld_in.fld.data(), fields.sd.at("evisc")->fld.data(),
-                    gd.dzhi.data(),
-                    tPr, fld_in.visc,
-                    gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-                    gd.icells, gd.ijcells);
-    }
+//    // Get a temp field, recalculate eddy viscosity for scalars (use new function)
+//    //** SvdL: should not exceed standard number of temporary fields (that is 4)?
+//    if( thermo.get_switch() != "0" )
+//    {
+//        auto evisch_tmp = fields.get_tmp();
+//        auto buoy_tmp   = fields.get_tmp();
+//        thermo.get_buoyancy_fluxbot(*buoy_tmp, false);
+//        thermo.get_thermo_field(*buoy_tmp, "N2", false, false);
+//
+//        // Recalculate the eddy diffusivity for heat and scalars and store in tmp field
+//        calc_evisc_heat<TF>(
+//                          evisch_tmp->fld.data(), fields.sd.at("evisc")->fld.data(),
+//                          fields.sd.at("sgstke12")->fld.data(), buoy_tmp->fld.data(),
+//                          gd.z.data(), gd.dz.data(), gd.dx, gd.dy,
+//                          boundary.z0m, this->cn, this->ch1, this->ch2,
+//                          gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+//                          gd.icells, gd.ijcells,
+//                          boundary_cyclic);
+//    }
+//
+//    if (boundary.get_switch() == "surface" || boundary.get_switch() == "surface_bulk")
+//    {
+//        // Calculate the boundary fluxes.
+//        calc_diff_flux_bc(out.fld.data(), fld_in.flux_bot.data(), gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.icells, gd.ijcells);
+//        calc_diff_flux_bc(out.fld.data(), fld_in.flux_top.data(), gd.istart, gd.iend, gd.jstart, gd.jend, gd.kend  , gd.icells, gd.ijcells);
+//
+//        // Calculate the interior.
+//        if (fld_in.loc[0] == 1)
+//            calc_diff_flux_u<TF, Surface_model::Enabled>(
+//                    out.fld.data(), fld_in.fld.data(), fields.mp.at("w")->fld.data(), fields.sd.at("evisc")->fld.data(),
+//                    gd.dxi, gd.dzhi.data(),
+//                    fields.visc,
+//                    gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+//                    gd.icells, gd.ijcells);
+//        else if (fld_in.loc[1] == 1)
+//            calc_diff_flux_v<TF, Surface_model::Enabled>(
+//                    out.fld.data(), fld_in.fld.data(), fields.mp.at("w")->fld.data(), fields.sd.at("evisc")->fld.data(),
+//                    gd.dyi, gd.dzhi.data(),
+//                    fields.visc,
+//                    gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+//                    gd.icells, gd.ijcells);
+//        else
+//            calc_diff_flux_c<TF, Surface_model::Enabled>(
+//                    out.fld.data(), fld_in.fld.data(), fields.sd.at("evisc")->fld.data(),
+//                    gd.dzhi.data(),
+//                    tPr, fld_in.visc,
+//                    gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+//                    gd.icells, gd.ijcells);
+//    }
+//    else
+//    {
+//        // Include the wall.
+//        if (fld_in.loc[0] == 1)
+//            calc_diff_flux_u<TF, Surface_model::Disabled>(
+//                    out.fld.data(), fld_in.fld.data(), fields.mp.at("w")->fld.data(), fields.sd.at("evisc")->fld.data(),
+//                    gd.dxi, gd.dzhi.data(),
+//                    fields.visc,
+//                    gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+//                    gd.icells, gd.ijcells);
+//        else if (fld_in.loc[1] == 1)
+//            calc_diff_flux_v<TF, Surface_model::Disabled>(
+//                    out.fld.data(), fld_in.fld.data(), fields.mp.at("w")->fld.data(), fields.sd.at("evisc")->fld.data(),
+//                    gd.dyi, gd.dzhi.data(),
+//                    fields.visc,
+//                    gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+//                    gd.icells, gd.ijcells);
+//        else
+//            calc_diff_flux_c<TF, Surface_model::Disabled>(
+//                    out.fld.data(), fld_in.fld.data(), fields.sd.at("evisc")->fld.data(),
+//                    gd.dzhi.data(),
+//                    tPr, fld_in.visc,
+//                    gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+//                    gd.icells, gd.ijcells);
+//    }
 }
 
 template class Diff_deardorff<double>;

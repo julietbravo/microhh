@@ -38,7 +38,7 @@ class Diff_2 : public Diff<TF>
 
         void create(Stats<TF>&);
         void init() {};
-        void exec(Stats<TF>&);
+        void exec(Stats<TF>&, Thermo<TF>&);
 
         // Empty functions, these are allowed to pass.
         void exec_viscosity(Thermo<TF>&) {}

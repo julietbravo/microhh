@@ -43,7 +43,7 @@ class Diff_deardorff : public Diff<TF>
 
         void create(Stats<TF>&);
         void init();
-        void exec(Stats<TF>&);
+        void exec(Stats<TF>&, Thermo<TF>&);
         void exec_viscosity(Thermo<TF>&);
         void diff_flux(Field3d<TF>&, const Field3d<TF>&);
         void exec_stats(Stats<TF>&);
@@ -73,6 +73,15 @@ class Diff_deardorff : public Diff<TF>
         double dnmul;
 
         double cs;
+
+        TF ap;
+        TF cf;
+        TF ce1;
+        TF ce2;
+        TF cm;
+        TF ch1;
+        TF ch2;
+        TF cn;
 
         const std::string tend_name = "diff";
         const std::string tend_longname = "Diffusion";

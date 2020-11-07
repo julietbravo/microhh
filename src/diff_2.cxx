@@ -159,7 +159,7 @@ void Diff_2<TF>::create(Stats<TF>& stats)
 
 #ifndef USECUDA
 template<typename TF>
-void Diff_2<TF>::exec(Stats<TF>& stats)
+void Diff_2<TF>::exec(Stats<TF>& stats, Thermo<TF>& thermo)
 {
     auto& gd = grid.get_grid_data();
 

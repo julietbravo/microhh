@@ -1679,89 +1679,103 @@ void Diff_deardorff<TF>::exec_stats(Stats<TF>& stats)
     stats.calc_stats("evisc", *fields.sd.at("evisc"), no_offset, no_threshold);
 }
 
-//** SvdL: bij deze functie, weet ik niet goed wat te doen:
-// er moet namelijk net als bij diff_c onderscheid gemaakt worden voor sgstke12 die met evisc (Km) moet diffuseren,
-// en de andere scalairen die met evisch (Kh) moeten diffuseren. Maar dan moet de naam van het huidige veld in deze functie worden meegegeven.
-// Dit vergt weer een aanpassing van stats.calc_stats waar diff.diff_flux wordt aangeroepen..
 template<typename TF>
-void Diff_deardorff<TF>::diff_flux(Field3d<TF>& restrict out, const Field3d<TF>& restrict fld_in)
+void Diff_deardorff<TF>::diff_flux(
+        Field3d<TF>& restrict out, const Field3d<TF>& restrict fld_in, std::string varname)
 {
     auto& gd = grid.get_grid_data();
 
-//    // Get a temp field, recalculate eddy viscosity for scalars (use new function)
-//    //** SvdL: should not exceed standard number of temporary fields (that is 4)?
-//    if( thermo.get_switch() != "0" )
-//    {
-//        auto evisch_tmp = fields.get_tmp();
-//        auto buoy_tmp   = fields.get_tmp();
-//        thermo.get_buoyancy_fluxbot(*buoy_tmp, false);
-//        thermo.get_thermo_field(*buoy_tmp, "N2", false, false);
-//
-//        // Recalculate the eddy diffusivity for heat and scalars and store in tmp field
-//        calc_evisc_heat<TF>(
-//                          evisch_tmp->fld.data(), fields.sd.at("evisc")->fld.data(),
-//                          fields.sd.at("sgstke12")->fld.data(), buoy_tmp->fld.data(),
-//                          gd.z.data(), gd.dz.data(), gd.dx, gd.dy,
-//                          boundary.z0m, this->cn, this->ch1, this->ch2,
-//                          gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-//                          gd.icells, gd.ijcells,
-//                          boundary_cyclic);
-//    }
-//
-//    if (boundary.get_switch() == "surface" || boundary.get_switch() == "surface_bulk")
-//    {
-//        // Calculate the boundary fluxes.
-//        calc_diff_flux_bc(out.fld.data(), fld_in.flux_bot.data(), gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.icells, gd.ijcells);
-//        calc_diff_flux_bc(out.fld.data(), fld_in.flux_top.data(), gd.istart, gd.iend, gd.jstart, gd.jend, gd.kend  , gd.icells, gd.ijcells);
-//
-//        // Calculate the interior.
-//        if (fld_in.loc[0] == 1)
-//            calc_diff_flux_u<TF, Surface_model::Enabled>(
-//                    out.fld.data(), fld_in.fld.data(), fields.mp.at("w")->fld.data(), fields.sd.at("evisc")->fld.data(),
-//                    gd.dxi, gd.dzhi.data(),
-//                    fields.visc,
-//                    gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-//                    gd.icells, gd.ijcells);
-//        else if (fld_in.loc[1] == 1)
-//            calc_diff_flux_v<TF, Surface_model::Enabled>(
-//                    out.fld.data(), fld_in.fld.data(), fields.mp.at("w")->fld.data(), fields.sd.at("evisc")->fld.data(),
-//                    gd.dyi, gd.dzhi.data(),
-//                    fields.visc,
-//                    gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-//                    gd.icells, gd.ijcells);
-//        else
-//            calc_diff_flux_c<TF, Surface_model::Enabled>(
-//                    out.fld.data(), fld_in.fld.data(), fields.sd.at("evisc")->fld.data(),
-//                    gd.dzhi.data(),
-//                    tPr, fld_in.visc,
-//                    gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-//                    gd.icells, gd.ijcells);
-//    }
-//    else
-//    {
-//        // Include the wall.
-//        if (fld_in.loc[0] == 1)
-//            calc_diff_flux_u<TF, Surface_model::Disabled>(
-//                    out.fld.data(), fld_in.fld.data(), fields.mp.at("w")->fld.data(), fields.sd.at("evisc")->fld.data(),
-//                    gd.dxi, gd.dzhi.data(),
-//                    fields.visc,
-//                    gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-//                    gd.icells, gd.ijcells);
-//        else if (fld_in.loc[1] == 1)
-//            calc_diff_flux_v<TF, Surface_model::Disabled>(
-//                    out.fld.data(), fld_in.fld.data(), fields.mp.at("w")->fld.data(), fields.sd.at("evisc")->fld.data(),
-//                    gd.dyi, gd.dzhi.data(),
-//                    fields.visc,
-//                    gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-//                    gd.icells, gd.ijcells);
-//        else
-//            calc_diff_flux_c<TF, Surface_model::Disabled>(
-//                    out.fld.data(), fld_in.fld.data(), fields.sd.at("evisc")->fld.data(),
-//                    gd.dzhi.data(),
-//                    tPr, fld_in.visc,
-//                    gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-//                    gd.icells, gd.ijcells);
-//    }
+    // Just a dummy value; scalars have their own evisc, so no Prandtl number needed..
+    const TF tPr_one = TF(1);
+
+    if (boundary.get_switch() == "surface" || boundary.get_switch() == "surface_bulk")
+    {
+        // Calculate the boundary fluxes.
+        calc_diff_flux_bc(
+                out.fld.data(), fld_in.flux_bot.data(),
+                gd.istart, gd.iend,
+                gd.jstart, gd.jend,
+                gd.kstart, gd.icells, gd.ijcells);
+
+        calc_diff_flux_bc(
+                out.fld.data(), fld_in.flux_top.data(),
+                gd.istart, gd.iend,
+                gd.jstart, gd.jend,
+                gd.kend, gd.icells, gd.ijcells);
+
+        // Calculate the interior.
+        if (fld_in.loc[0] == 1)
+            calc_diff_flux_u<TF, Surface_model::Enabled>(
+                    out.fld.data(), fld_in.fld.data(),
+                    fields.mp.at("w")->fld.data(),
+                    fields.sd.at("evisc")->fld.data(),
+                    gd.dxi, gd.dzhi.data(),
+                    fields.visc,
+                    gd.istart, gd.iend,
+                    gd.jstart, gd.jend,
+                    gd.kstart, gd.kend,
+                    gd.icells, gd.ijcells);
+
+        else if (fld_in.loc[1] == 1)
+            calc_diff_flux_v<TF, Surface_model::Enabled>(
+                    out.fld.data(), fld_in.fld.data(),
+                    fields.mp.at("w")->fld.data(),
+                    fields.sd.at("evisc")->fld.data(),
+                    gd.dyi, gd.dzhi.data(),
+                    fields.visc,
+                    gd.istart, gd.iend,
+                    gd.jstart, gd.jend,
+                    gd.kstart, gd.kend,
+                    gd.icells, gd.ijcells);
+        else
+        {
+            if (varname == "sgstke12")
+                calc_diff_flux_c<TF, Surface_model::Enabled>(
+                        out.fld.data(), fld_in.fld.data(),
+                        fields.sd.at("evisc")->fld.data(),
+                        gd.dzhi.data(),
+                        tPr_one, fld_in.visc,
+                        gd.istart, gd.iend,
+                        gd.jstart, gd.jend,
+                        gd.kstart, gd.kend,
+                        gd.icells, gd.ijcells);
+            else
+                calc_diff_flux_c<TF, Surface_model::Enabled>(
+                        out.fld.data(), fld_in.fld.data(),
+                        fields.sd.at("eviscs")->fld.data(),
+                        gd.dzhi.data(),
+                        tPr_one, fld_in.visc,
+                        gd.istart, gd.iend,
+                        gd.jstart, gd.jend,
+                        gd.kstart, gd.kend,
+                        gd.icells, gd.ijcells);
+        }
+    }
+    else
+    {
+    //    // Include the wall.
+    //    if (fld_in.loc[0] == 1)
+    //        calc_diff_flux_u<TF, Surface_model::Disabled>(
+    //                out.fld.data(), fld_in.fld.data(), fields.mp.at("w")->fld.data(), fields.sd.at("evisc")->fld.data(),
+    //                gd.dxi, gd.dzhi.data(),
+    //                fields.visc,
+    //                gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+    //                gd.icells, gd.ijcells);
+    //    else if (fld_in.loc[1] == 1)
+    //        calc_diff_flux_v<TF, Surface_model::Disabled>(
+    //                out.fld.data(), fld_in.fld.data(), fields.mp.at("w")->fld.data(), fields.sd.at("evisc")->fld.data(),
+    //                gd.dyi, gd.dzhi.data(),
+    //                fields.visc,
+    //                gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+    //                gd.icells, gd.ijcells);
+    //    else
+    //        calc_diff_flux_c<TF, Surface_model::Disabled>(
+    //                out.fld.data(), fld_in.fld.data(), fields.sd.at("evisc")->fld.data(),
+    //                gd.dzhi.data(),
+    //                tPr, fld_in.visc,
+    //                gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+    //                gd.icells, gd.ijcells);
+    }
 }
 
 template class Diff_deardorff<double>;

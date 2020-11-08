@@ -1060,7 +1060,7 @@ void Diff_smag2<TF>::exec_stats(Stats<TF>& stats)
 }
 
 template<typename TF>
-void Diff_smag2<TF>::diff_flux(Field3d<TF>& restrict out, const Field3d<TF>& restrict fld_in)
+void Diff_smag2<TF>::diff_flux(Field3d<TF>& restrict out, const Field3d<TF>& restrict fld_in, std::string varname)
 {
     auto& gd = grid.get_grid_data();
 

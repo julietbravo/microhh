@@ -1289,7 +1289,7 @@ void Stats<TF>::calc_mask_stats(
     if (std::find(varlist.begin(), varlist.end(), name) != varlist.end())
     {
         auto diff_flux = fields.get_tmp();
-        diff.diff_flux(*diff_flux, fld);
+        diff.diff_flux(*diff_flux, fld, varname);
 
         set_flag(flag, nmask, m.second, !fld.loc[2]);
         calc_mean(
@@ -1468,7 +1468,7 @@ void Stats<TF>::calc_stats(
     if (std::find(varlist.begin(), varlist.end(), name) != varlist.end())
     {
         auto diff_flux = fields.get_tmp();
-        diff.diff_flux(*diff_flux, fld);
+        diff.diff_flux(*diff_flux, fld, varname);
 
         for (auto& m : masks)
         {

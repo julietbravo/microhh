@@ -48,7 +48,6 @@ namespace
 
     enum class Surface_model {Enabled, Disabled};
 
-    //** SvdL: I guess this one should be fine already?
     template <typename TF, Surface_model surface_model>
     void calc_strain2(
             TF* const restrict strain2,
@@ -82,40 +81,42 @@ namespace
                     const int ijk = i + j*jj + kstart*kk;
 
                     strain2[ijk] = TF(2.)*(
-                                   // du/dx + du/dx
-                                   + fm::pow2((u[ijk+ii]-u[ijk])*dxi)
+                            // du/dx + du/dx
+                            + fm::pow2((u[ijk+ii]-u[ijk])*dxi)
 
-                                   // dv/dy + dv/dy
-                                   + fm::pow2((v[ijk+jj]-v[ijk])*dyi)
+                            // dv/dy + dv/dy
+                            + fm::pow2((v[ijk+jj]-v[ijk])*dyi)
 
-                                   // dw/dz + dw/dz
-                                   + fm::pow2((w[ijk+kk]-w[ijk])*dzi[kstart])
+                            // dw/dz + dw/dz
+                            + fm::pow2((w[ijk+kk]-w[ijk])*dzi[kstart])
 
-                                   // du/dy + dv/dx
-                                   + TF(0.125)*fm::pow2((u[ijk      ]-u[ijk   -jj])*dyi  + (v[ijk      ]-v[ijk-ii   ])*dxi)
-                                   + TF(0.125)*fm::pow2((u[ijk+ii   ]-u[ijk+ii-jj])*dyi  + (v[ijk+ii   ]-v[ijk      ])*dxi)
-                                   + TF(0.125)*fm::pow2((u[ijk   +jj]-u[ijk      ])*dyi  + (v[ijk   +jj]-v[ijk-ii+jj])*dxi)
-                                   + TF(0.125)*fm::pow2((u[ijk+ii+jj]-u[ijk+ii   ])*dyi  + (v[ijk+ii+jj]-v[ijk   +jj])*dxi)
+                            // du/dy + dv/dx
+                            + TF(0.125)*fm::pow2((u[ijk      ]-u[ijk   -jj])*dyi  + (v[ijk      ]-v[ijk-ii   ])*dxi)
+                            + TF(0.125)*fm::pow2((u[ijk+ii   ]-u[ijk+ii-jj])*dyi  + (v[ijk+ii   ]-v[ijk      ])*dxi)
+                            + TF(0.125)*fm::pow2((u[ijk   +jj]-u[ijk      ])*dyi  + (v[ijk   +jj]-v[ijk-ii+jj])*dxi)
+                            + TF(0.125)*fm::pow2((u[ijk+ii+jj]-u[ijk+ii   ])*dyi  + (v[ijk+ii+jj]-v[ijk   +jj])*dxi)
 
-                                   // du/dz
-                                   + TF(0.5)*fm::pow2(TF(-0.5)*(ufluxbot[ij]+ufluxbot[ij+ii])/(Constants::kappa<TF>*z[kstart]*ustar[ij])*most::phim(z[kstart]/obuk[ij]))
+                            // du/dz
+                            + TF(0.5)*fm::pow2(TF(-0.5)*(ufluxbot[ij]+ufluxbot[ij+ii]) /
+                                (Constants::kappa<TF>*z[kstart]*ustar[ij])*most::phim(z[kstart]/obuk[ij]))
 
-                                   // dw/dx
-                                   + TF(0.125)*fm::pow2((w[ijk      ]-w[ijk-ii   ])*dxi)
-                                   + TF(0.125)*fm::pow2((w[ijk+ii   ]-w[ijk      ])*dxi)
-                                   + TF(0.125)*fm::pow2((w[ijk   +kk]-w[ijk-ii+kk])*dxi)
-                                   + TF(0.125)*fm::pow2((w[ijk+ii+kk]-w[ijk   +kk])*dxi)
+                            // dw/dx
+                            + TF(0.125)*fm::pow2((w[ijk      ]-w[ijk-ii   ])*dxi)
+                            + TF(0.125)*fm::pow2((w[ijk+ii   ]-w[ijk      ])*dxi)
+                            + TF(0.125)*fm::pow2((w[ijk   +kk]-w[ijk-ii+kk])*dxi)
+                            + TF(0.125)*fm::pow2((w[ijk+ii+kk]-w[ijk   +kk])*dxi)
 
-                                   // dv/dz
-                                   + TF(0.5)*fm::pow2(TF(-0.5)*(vfluxbot[ij]+vfluxbot[ij+jj])/(Constants::kappa<TF>*z[kstart]*ustar[ij])*most::phim(z[kstart]/obuk[ij]))
+                            // dv/dz
+                            + TF(0.5)*fm::pow2(TF(-0.5)*(vfluxbot[ij]+vfluxbot[ij+jj]) /
+                                    (Constants::kappa<TF>*z[kstart]*ustar[ij])*most::phim(z[kstart]/obuk[ij]))
 
-                                   // dw/dy
-                                   + TF(0.125)*fm::pow2((w[ijk      ]-w[ijk-jj   ])*dyi)
-                                   + TF(0.125)*fm::pow2((w[ijk+jj   ]-w[ijk      ])*dyi)
-                                   + TF(0.125)*fm::pow2((w[ijk   +kk]-w[ijk-jj+kk])*dyi)
-                                   + TF(0.125)*fm::pow2((w[ijk+jj+kk]-w[ijk   +kk])*dyi) );
+                            // dw/dy
+                            + TF(0.125)*fm::pow2((w[ijk      ]-w[ijk-jj   ])*dyi)
+                            + TF(0.125)*fm::pow2((w[ijk+jj   ]-w[ijk      ])*dyi)
+                            + TF(0.125)*fm::pow2((w[ijk   +kk]-w[ijk-jj+kk])*dyi)
+                            + TF(0.125)*fm::pow2((w[ijk+jj+kk]-w[ijk   +kk])*dyi) );
 
-                    // add a small number to avoid zero divisions
+                    // Add a small number to avoid zero divisions
                     strain2[ijk] += Constants::dsmall;
                 }
         }
@@ -127,32 +128,32 @@ namespace
                 {
                     const int ijk = i + j*jj + k*kk;
                     strain2[ijk] = TF(2.)*(
-                                   // du/dx + du/dx
-                                   + fm::pow2((u[ijk+ii]-u[ijk])*dxi)
+                            // du/dx + du/dx
+                            + fm::pow2((u[ijk+ii]-u[ijk])*dxi)
 
-                                   // dv/dy + dv/dy
-                                   + fm::pow2((v[ijk+jj]-v[ijk])*dyi)
+                            // dv/dy + dv/dy
+                            + fm::pow2((v[ijk+jj]-v[ijk])*dyi)
 
-                                   // dw/dz + dw/dz
-                                   + fm::pow2((w[ijk+kk]-w[ijk])*dzi[k])
+                            // dw/dz + dw/dz
+                            + fm::pow2((w[ijk+kk]-w[ijk])*dzi[k])
 
-                                   // du/dy + dv/dx
-                                   + TF(0.125)*fm::pow2((u[ijk      ]-u[ijk   -jj])*dyi  + (v[ijk      ]-v[ijk-ii   ])*dxi)
-                                   + TF(0.125)*fm::pow2((u[ijk+ii   ]-u[ijk+ii-jj])*dyi  + (v[ijk+ii   ]-v[ijk      ])*dxi)
-                                   + TF(0.125)*fm::pow2((u[ijk   +jj]-u[ijk      ])*dyi  + (v[ijk   +jj]-v[ijk-ii+jj])*dxi)
-                                   + TF(0.125)*fm::pow2((u[ijk+ii+jj]-u[ijk+ii   ])*dyi  + (v[ijk+ii+jj]-v[ijk   +jj])*dxi)
+                            // du/dy + dv/dx
+                            + TF(0.125)*fm::pow2((u[ijk      ]-u[ijk   -jj])*dyi  + (v[ijk      ]-v[ijk-ii   ])*dxi)
+                            + TF(0.125)*fm::pow2((u[ijk+ii   ]-u[ijk+ii-jj])*dyi  + (v[ijk+ii   ]-v[ijk      ])*dxi)
+                            + TF(0.125)*fm::pow2((u[ijk   +jj]-u[ijk      ])*dyi  + (v[ijk   +jj]-v[ijk-ii+jj])*dxi)
+                            + TF(0.125)*fm::pow2((u[ijk+ii+jj]-u[ijk+ii   ])*dyi  + (v[ijk+ii+jj]-v[ijk   +jj])*dxi)
 
-                                   // du/dz + dw/dx
-                                   + TF(0.125)*fm::pow2((u[ijk      ]-u[ijk   -kk])*dzhi[k  ] + (w[ijk      ]-w[ijk-ii   ])*dxi)
-                                   + TF(0.125)*fm::pow2((u[ijk+ii   ]-u[ijk+ii-kk])*dzhi[k  ] + (w[ijk+ii   ]-w[ijk      ])*dxi)
-                                   + TF(0.125)*fm::pow2((u[ijk   +kk]-u[ijk      ])*dzhi[k+1] + (w[ijk   +kk]-w[ijk-ii+kk])*dxi)
-                                   + TF(0.125)*fm::pow2((u[ijk+ii+kk]-u[ijk+ii   ])*dzhi[k+1] + (w[ijk+ii+kk]-w[ijk   +kk])*dxi)
+                            // du/dz + dw/dx
+                            + TF(0.125)*fm::pow2((u[ijk      ]-u[ijk   -kk])*dzhi[k  ] + (w[ijk      ]-w[ijk-ii   ])*dxi)
+                            + TF(0.125)*fm::pow2((u[ijk+ii   ]-u[ijk+ii-kk])*dzhi[k  ] + (w[ijk+ii   ]-w[ijk      ])*dxi)
+                            + TF(0.125)*fm::pow2((u[ijk   +kk]-u[ijk      ])*dzhi[k+1] + (w[ijk   +kk]-w[ijk-ii+kk])*dxi)
+                            + TF(0.125)*fm::pow2((u[ijk+ii+kk]-u[ijk+ii   ])*dzhi[k+1] + (w[ijk+ii+kk]-w[ijk   +kk])*dxi)
 
-                                   // dv/dz + dw/dy
-                                   + TF(0.125)*fm::pow2((v[ijk      ]-v[ijk   -kk])*dzhi[k  ] + (w[ijk      ]-w[ijk-jj   ])*dyi)
-                                   + TF(0.125)*fm::pow2((v[ijk+jj   ]-v[ijk+jj-kk])*dzhi[k  ] + (w[ijk+jj   ]-w[ijk      ])*dyi)
-                                   + TF(0.125)*fm::pow2((v[ijk   +kk]-v[ijk      ])*dzhi[k+1] + (w[ijk   +kk]-w[ijk-jj+kk])*dyi)
-                                   + TF(0.125)*fm::pow2((v[ijk+jj+kk]-v[ijk+jj   ])*dzhi[k+1] + (w[ijk+jj+kk]-w[ijk   +kk])*dyi) );
+                            // dv/dz + dw/dy
+                            + TF(0.125)*fm::pow2((v[ijk      ]-v[ijk   -kk])*dzhi[k  ] + (w[ijk      ]-w[ijk-jj   ])*dyi)
+                            + TF(0.125)*fm::pow2((v[ijk+jj   ]-v[ijk+jj-kk])*dzhi[k  ] + (w[ijk+jj   ]-w[ijk      ])*dyi)
+                            + TF(0.125)*fm::pow2((v[ijk   +kk]-v[ijk      ])*dzhi[k+1] + (w[ijk   +kk]-w[ijk-jj+kk])*dyi)
+                            + TF(0.125)*fm::pow2((v[ijk+jj+kk]-v[ijk+jj   ])*dzhi[k+1] + (w[ijk+jj+kk]-w[ijk   +kk])*dyi) );
 
                     // Add a small number to avoid zero divisions.
                     strain2[ijk] += Constants::dsmall;
@@ -363,7 +364,8 @@ namespace
 
                         fac  = std::min(mlen0, mlen);
                         // Apply Mason's wall correction here, as in DALES
-                        fac = std::pow(TF(1.)/(TF(1.)/std::pow(fac, n_mason) + TF(1.)/(std::pow(Constants::kappa<TF>*(z[k]+z0m), n_mason))), TF(1.)/n_mason);
+                        fac = std::pow(TF(1.)/(TF(1.)/std::pow(fac, n_mason) + TF(1.)/
+                                    (std::pow(Constants::kappa<TF>*(z[k]+z0m), n_mason))), TF(1.)/n_mason);
                         kvisc = cm * fac * sgstke12[ijk];
 
                         // Formally, this is only Km (momentum). Kh is calculated when needed.
@@ -461,15 +463,14 @@ namespace
 
                         fac  = std::min(mlen0, mlen);
                         // Apply Mason's wall correction here, as in DALES
-                        fac = std::pow(TF(1.)/(TF(1.)/std::pow(fac, n_mason) + TF(1.)/(std::pow(Constants::kappa<TF>*(z[k]+z0m), n_mason))), TF(1.)/n_mason);
+                        fac = std::pow(TF(1.)/(TF(1.)/std::pow(fac, n_mason) + TF(1.)/
+                                    (std::pow(Constants::kappa<TF>*(z[k]+z0m), n_mason))), TF(1.)/n_mason);
                         kvisc = (ch1 + ch2 * fac / mlen0 ) * evisc[ijk];
 
                         // Also, as in DALES: enforce minimum eddy viscosity (mvisc)
                         evisch[ijk] = std::max(kvisc, mvisc<TF>);
-
                     }
             }
-
 //        }
 
         boundary_cyclic.exec(evisch);
@@ -495,8 +496,10 @@ namespace
                     const int ijk = i + j*jj + k*kk;
 
                     // Calculate shear production of TKE based on Deardorff (1980)
-                    // S2 appears to be simply 2*(strain squared). Therefore, use strain2[ijk] ( * 2 which drops out again after division with 2*sgstke12)
+                    // S2 appears to be simply 2*(strain squared). Therefore, use strain2[ijk] ( * 2 which
+                    // drops out again after division with 2*sgstke12)
                     // https://github.com/dalesteam/dales/blob/master/src/modsubgrid.f90
+
                     at[ijk] += evisc[ijk] * strain2[ijk] / a[ijk] ;
                 }
 
@@ -565,9 +568,11 @@ namespace
 
                     fac  = std::min(mlen0, mlen);
                     // Apply Mason's wall correction here, as in DALES
-                    fac = std::pow(TF(1.)/(TF(1.)/std::pow(fac, n_mason) + TF(1.)/(std::pow(Constants::kappa<TF>*(z[k]+z0m), n_mason))), TF(1.)/n_mason);
+                    fac = std::pow(TF(1.)/(TF(1.)/std::pow(fac, n_mason) + TF(1.)/
+                                (std::pow(Constants::kappa<TF>*(z[k]+z0m), n_mason))), TF(1.)/n_mason);
 
-                    //** SvdL: dit is best raar, want waarom zou je l (fac) wel aanpassen d.m.v. Mason correctie, maar mlen0 niet. Zouden ze niet beiden aangepast moeten worden?
+                    //** SvdL: dit is best raar, want waarom zou je l (fac) wel aanpassen d.m.v. Mason correctie,
+                    // maar mlen0 niet. Zouden ze niet beiden aangepast moeten worden?
                     // Calculate dissipation of TKE based on Deardorff (1980)
                     sgstke12_tend[ijk] -= (ce1 + ce2 * fac / mlen0 ) * std::pow(sgstke12[ijk], TF(2.)) / fac / TF(2.);
                 }
@@ -594,7 +599,8 @@ namespace
             // Calculate geometric filter width, based on Deardorff (1980)
             const TF mlen0 = std::pow(dx*dy*dz[k], TF(1./3.));
             // Apply Mason's wall correction here, as in DALES
-            const TF fac = std::pow(TF(1.)/(TF(1.)/std::pow(mlen0, n_mason) + TF(1.)/(std::pow(Constants::kappa<TF>*(z[k]+z0m), n_mason))), TF(1.)/n_mason);
+            const TF fac = std::pow(TF(1.)/(TF(1.)/std::pow(mlen0, n_mason) + TF(1.)/
+                        (std::pow(Constants::kappa<TF>*(z[k]+z0m), n_mason))), TF(1.)/n_mason);
 
             for (int j=jstart; j<jend; ++j)
                 #pragma ivdep
@@ -602,7 +608,8 @@ namespace
                 {
                     const int ijk = i + j*jj + k*kk;
 
-                    //** SvdL: dit is best raar, want waarom zou je l (fac) wel aanpassen d.m.v. Mason correctie, maar mlen0 niet. Zouden ze niet beiden aangepast moeten worden?
+                    //** SvdL: dit is best raar, want waarom zou je l (fac) wel aanpassen d.m.v. Mason correctie,
+                    // maar mlen0 niet. Zouden ze niet beiden aangepast moeten worden?
                     // Calculate dissipation of TKE based on Deardorff (1980)
                     at[ijk] -= (ce1 + ce2 * fac / mlen0 ) * std::pow(a[ijk], TF(2.)) / fac / TF(2.);
                 }
@@ -1106,7 +1113,10 @@ Diff_deardorff<TF>::Diff_deardorff(
     // As in Deardorff (1980) work with square root of sgs-tke:
     fields.init_prognostic_field("sgstke12", "Square root of SGS TKE", "m s-1", group_name, gd.sloc);
 
-    fields.init_diagnostic_field("evisc", "Eddy viscosity for momentum", "m2 s-1", group_name, gd.sloc);
+    fields.init_diagnostic_field("evisc",  "Eddy viscosity for momentum", "m2 s-1", group_name, gd.sloc);
+
+    if (fields.sp.size() > 0)
+        fields.init_diagnostic_field("eviscs", "Eddy viscosity for scalars", "m2 s-1",  group_name, gd.sloc);
 
     if (grid.get_spatial_order() != Grid_order::Second)
         throw std::runtime_error("Diff_deardorff only runs with second order grids");
@@ -1135,12 +1145,17 @@ Diffusion_type Diff_deardorff<TF>::get_switch() const
 template<typename TF>
 unsigned long Diff_deardorff<TF>::get_time_limit(const unsigned long idt, const double dt)
 {
-    const TF tempPr = 1.;
-
     auto& gd = grid.get_grid_data();
-    double dnmul = calc_dnmul<TF>(fields.sd.at("evisc")->fld.data(), gd.dzi.data(), 1./(gd.dx*gd.dx), 1./(gd.dy*gd.dy), tempPr,
-                                  gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-                                  gd.icells, gd.ijcells);
+
+    const TF tempPr = 1.;
+    double dnmul = calc_dnmul<TF>(
+            fields.sd.at("evisc")->fld.data(),
+            gd.dzi.data(), 1./(gd.dx*gd.dx), 1./(gd.dy*gd.dy), tempPr,
+            gd.istart, gd.iend,
+            gd.jstart, gd.jend,
+            gd.kstart, gd.kend,
+            gd.icells, gd.ijcells);
+
     master.max(&dnmul, 1);
 
     // Avoid zero division.
@@ -1154,12 +1169,17 @@ unsigned long Diff_deardorff<TF>::get_time_limit(const unsigned long idt, const 
 template<typename TF>
 double Diff_deardorff<TF>::get_dn(const double dt)
 {
-    const TF tempPr = 1.;
-
     auto& gd = grid.get_grid_data();
-    double dnmul = calc_dnmul<TF>(fields.sd.at("evisc")->fld.data(), gd.dzi.data(), 1./(gd.dx*gd.dx), 1./(gd.dy*gd.dy), tempPr,
-                                  gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-                                  gd.icells, gd.ijcells);
+
+    const TF tempPr = 1.;
+    double dnmul = calc_dnmul<TF>(
+            fields.sd.at("evisc")->fld.data(),
+            gd.dzi.data(), 1./(gd.dx*gd.dx), 1./(gd.dy*gd.dy), tempPr,
+            gd.istart, gd.iend,
+            gd.jstart, gd.jend,
+            gd.kstart, gd.kend,
+            gd.icells, gd.ijcells);
+
     master.max(&dnmul, 1);
 
     return dnmul*dt;
@@ -1192,83 +1212,72 @@ void Diff_deardorff<TF>::exec(Stats<TF>& stats, Thermo<TF>& thermo)
 {
     auto& gd = grid.get_grid_data();
 
-    auto evisch_tmp = fields.get_tmp();
-    auto buoy_tmp   = fields.get_tmp();
-
-    // Get a temp field, recalculate eddy viscosity for scalars (use new function)
-    if( thermo.get_switch() != "0" )
-    {
-        thermo.get_buoyancy_fluxbot(*buoy_tmp, false);
-        thermo.get_thermo_field(*buoy_tmp, "N2", false, false);
-
-        // Recalculate the eddy diffusivity for heat and scalars and store in tmp field
-        if (boundary.get_switch() == "surface" || boundary.get_switch() == "surface_bulk")
-            calc_evisc_heat<TF, Surface_model::Enabled>(
-                    evisch_tmp->fld.data(), fields.sd.at("evisc")->fld.data(),
-                    fields.sp.at("sgstke12")->fld.data(), buoy_tmp->fld.data(),
-                    gd.z.data(), gd.dz.data(), gd.dx, gd.dy,
-                    boundary.z0m, this->cn, this->ch1, this->ch2,
-                    gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-                    gd.icells, gd.jcells, gd.ijcells,
-                    boundary_cyclic);
-        else
-            calc_evisc_heat<TF, Surface_model::Disabled>(
-                    evisch_tmp->fld.data(), fields.sd.at("evisc")->fld.data(),
-                    fields.sp.at("sgstke12")->fld.data(), buoy_tmp->fld.data(),
-                    gd.z.data(), gd.dz.data(), gd.dx, gd.dy,
-                    boundary.z0m, this->cn, this->ch1, this->ch2,
-                    gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-                    gd.icells, gd.jcells, gd.ijcells,
-                    boundary_cyclic);
-    }
-
     if (boundary.get_switch() == "surface" || boundary.get_switch() == "surface_bulk")
     {
         diff_u<TF, Surface_model::Enabled>(
                 fields.mt.at("u")->fld.data(),
-                fields.mp.at("u")->fld.data(), fields.mp.at("v")->fld.data(), fields.mp.at("w")->fld.data(),
-                gd.dzi.data(), gd.dzhi.data(), 1./gd.dx, 1./gd.dy,
+                fields.mp.at("u")->fld.data(),
+                fields.mp.at("v")->fld.data(),
+                fields.mp.at("w")->fld.data(),
+                gd.dzi.data(), gd.dzhi.data(),
+                1./gd.dx, 1./gd.dy,
                 fields.sd.at("evisc")->fld.data(),
-                fields.mp.at("u")->flux_bot.data(), fields.mp.at("u")->flux_top.data(),
+                fields.mp.at("u")->flux_bot.data(),
+                fields.mp.at("u")->flux_top.data(),
                 fields.rhoref.data(), fields.rhorefh.data(),
                 fields.visc,
-                gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+                gd.istart, gd.iend,
+                gd.jstart, gd.jend,
+                gd.kstart, gd.kend,
                 gd.icells, gd.ijcells);
 
         diff_v<TF, Surface_model::Enabled>(
                 fields.mt.at("v")->fld.data(),
-                fields.mp.at("u")->fld.data(), fields.mp.at("v")->fld.data(), fields.mp.at("w")->fld.data(),
-                gd.dzi.data(), gd.dzhi.data(), 1./gd.dx, 1./gd.dy,
+                fields.mp.at("u")->fld.data(),
+                fields.mp.at("v")->fld.data(),
+                fields.mp.at("w")->fld.data(),
+                gd.dzi.data(), gd.dzhi.data(),
+                1./gd.dx, 1./gd.dy,
                 fields.sd.at("evisc")->fld.data(),
-                fields.mp.at("v")->flux_bot.data(), fields.mp.at("v")->flux_top.data(),
+                fields.mp.at("v")->flux_bot.data(),
+                fields.mp.at("v")->flux_top.data(),
                 fields.rhoref.data(), fields.rhorefh.data(),
                 fields.visc,
-                gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+                gd.istart, gd.iend,
+                gd.jstart, gd.jend,
+                gd.kstart, gd.kend,
                 gd.icells, gd.ijcells);
 
         diff_w<TF>(
                 fields.mt.at("w")->fld.data(),
-                fields.mp.at("u")->fld.data(), fields.mp.at("v")->fld.data(), fields.mp.at("w")->fld.data(),
-                gd.dzi.data(), gd.dzhi.data(), 1./gd.dx, 1./gd.dy,
+                fields.mp.at("u")->fld.data(),
+                fields.mp.at("v")->fld.data(),
+                fields.mp.at("w")->fld.data(),
+                gd.dzi.data(), gd.dzhi.data(),
+                1./gd.dx, 1./gd.dy,
                 fields.sd.at("evisc")->fld.data(),
                 fields.rhoref.data(), fields.rhorefh.data(),
                 fields.visc,
-                gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+                gd.istart, gd.iend,
+                gd.jstart, gd.jend,
+                gd.kstart, gd.kend,
                 gd.icells, gd.ijcells);
 
         for (auto it : fields.st)
         {
-            //** SvdL: is this string comparison correct?
             if( it.first == "sgstke12" ) // sgstke12 diffuses with Km
             {
                 diff_c<TF, Surface_model::Enabled>(
-                        it.second->fld.data(), fields.sp.at(it.first)->fld.data(),
+                        it.second->fld.data(),
+                        fields.sp.at(it.first)->fld.data(),
                         gd.dzi.data(), gd.dzhi.data(), 1./(gd.dx*gd.dx), 1./(gd.dy*gd.dy),
                         fields.sd.at("evisc")->fld.data(),
                         fields.sp.at(it.first)->flux_bot.data(), fields.sp.at(it.first)->flux_top.data(),
                         fields.rhoref.data(), fields.rhorefh.data(),
                         fields.sp.at(it.first)->visc,
-                        gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+                        gd.istart, gd.iend,
+                        gd.jstart, gd.jend,
+                        gd.kstart, gd.kend,
                         gd.icells, gd.ijcells);
             }
             else // all other scalars, diffuse with Kh
@@ -1276,25 +1285,35 @@ void Diff_deardorff<TF>::exec(Stats<TF>& stats, Thermo<TF>& thermo)
                 if( thermo.get_switch() == "0" ) // if no buoyancy, Kh = Km
                 {
                     diff_c<TF, Surface_model::Enabled>(
-                            it.second->fld.data(), fields.sp.at(it.first)->fld.data(),
-                            gd.dzi.data(), gd.dzhi.data(), 1./(gd.dx*gd.dx), 1./(gd.dy*gd.dy),
+                            it.second->fld.data(),
+                            fields.sp.at(it.first)->fld.data(),
+                            gd.dzi.data(), gd.dzhi.data(),
+                            1./(gd.dx*gd.dx), 1./(gd.dy*gd.dy),
                             fields.sd.at("evisc")->fld.data(),
-                            fields.sp.at(it.first)->flux_bot.data(), fields.sp.at(it.first)->flux_top.data(),
+                            fields.sp.at(it.first)->flux_bot.data(),
+                            fields.sp.at(it.first)->flux_top.data(),
                             fields.rhoref.data(), fields.rhorefh.data(),
                             fields.sp.at(it.first)->visc,
-                            gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+                            gd.istart, gd.iend,
+                            gd.jstart, gd.jend,
+                            gd.kstart, gd.kend,
                             gd.icells, gd.ijcells);
                 }
                 else // assume buoyancy calculation is needed
                 {
                     diff_c<TF, Surface_model::Enabled>(
-                            it.second->fld.data(), fields.sp.at(it.first)->fld.data(),
-                            gd.dzi.data(), gd.dzhi.data(), 1./(gd.dx*gd.dx), 1./(gd.dy*gd.dy),
-                            evisch_tmp->fld.data(),
-                            fields.sp.at(it.first)->flux_bot.data(), fields.sp.at(it.first)->flux_top.data(),
+                            it.second->fld.data(),
+                            fields.sp.at(it.first)->fld.data(),
+                            gd.dzi.data(), gd.dzhi.data(),
+                            1./(gd.dx*gd.dx), 1./(gd.dy*gd.dy),
+                            fields.sd.at("eviscs")->fld.data(),
+                            fields.sp.at(it.first)->flux_bot.data(),
+                            fields.sp.at(it.first)->flux_top.data(),
                             fields.rhoref.data(), fields.rhorefh.data(),
                             fields.sp.at(it.first)->visc,
-                            gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+                            gd.istart, gd.iend,
+                            gd.jstart, gd.jend,
+                            gd.kstart, gd.kend,
                             gd.icells, gd.ijcells);
                 }
             }
@@ -1302,85 +1321,114 @@ void Diff_deardorff<TF>::exec(Stats<TF>& stats, Thermo<TF>& thermo)
     }
     else
     {
-        diff_u<TF, Surface_model::Disabled>(
-                fields.mt.at("u")->fld.data(),
-                fields.mp.at("u")->fld.data(), fields.mp.at("v")->fld.data(), fields.mp.at("w")->fld.data(),
-                gd.dzi.data(), gd.dzhi.data(), 1./gd.dx, 1./gd.dy,
-                fields.sd.at("evisc")->fld.data(),
-                fields.mp.at("u")->flux_bot.data(), fields.mp.at("u")->flux_top.data(),
-                fields.rhoref.data(), fields.rhorefh.data(),
-                fields.visc,
-                gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-                gd.icells, gd.ijcells);
+    //    diff_u<TF, Surface_model::Disabled>(
+    //            fields.mt.at("u")->fld.data(),
+    //            fields.mp.at("u")->fld.data(),
+    //            fields.mp.at("v")->fld.data(),
+    //            fields.mp.at("w")->fld.data(),
+    //            gd.dzi.data(), gd.dzhi.data(),
+    //            1./gd.dx, 1./gd.dy,
+    //            fields.sd.at("evisc")->fld.data(),
+    //            fields.mp.at("u")->flux_bot.data(),
+    //            fields.mp.at("u")->flux_top.data(),
+    //            fields.rhoref.data(), fields.rhorefh.data(),
+    //            fields.visc,
+    //            gd.istart, gd.iend,
+    //            gd.jstart, gd.jend,
+    //            gd.kstart, gd.kend,
+    //            gd.icells, gd.ijcells);
 
-        diff_v<TF, Surface_model::Disabled>(
-                fields.mt.at("v")->fld.data(),
-                fields.mp.at("u")->fld.data(), fields.mp.at("v")->fld.data(), fields.mp.at("w")->fld.data(),
-                gd.dzi.data(), gd.dzhi.data(), 1./gd.dx, 1./gd.dy,
-                fields.sd.at("evisc")->fld.data(),
-                fields.mp.at("v")->flux_bot.data(), fields.mp.at("v")->flux_top.data(),
-                fields.rhoref.data(), fields.rhorefh.data(),
-                fields.visc,
-                gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-                gd.icells, gd.ijcells);
+    //    diff_v<TF, Surface_model::Disabled>(
+    //            fields.mt.at("v")->fld.data(),
+    //            fields.mp.at("u")->fld.data(),
+    //            fields.mp.at("v")->fld.data(),
+    //            fields.mp.at("w")->fld.data(),
+    //            gd.dzi.data(), gd.dzhi.data(),
+    //            1./gd.dx, 1./gd.dy,
+    //            fields.sd.at("evisc")->fld.data(),
+    //            fields.mp.at("v")->flux_bot.data(),
+    //            fields.mp.at("v")->flux_top.data(),
+    //            fields.rhoref.data(), fields.rhorefh.data(),
+    //            fields.visc,
+    //            gd.istart, gd.iend,
+    //            gd.jstart, gd.jend,
+    //            gd.kstart, gd.kend,
+    //            gd.icells, gd.ijcells);
 
-        diff_w<TF>(
-                fields.mt.at("w")->fld.data(),
-                fields.mp.at("u")->fld.data(), fields.mp.at("v")->fld.data(), fields.mp.at("w")->fld.data(),
-                gd.dzi.data(), gd.dzhi.data(), 1./gd.dx, 1./gd.dy,
-                fields.sd.at("evisc")->fld.data(),
-                fields.rhoref.data(), fields.rhorefh.data(),
-                fields.visc,
-                gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-                gd.icells, gd.ijcells);
+    //    diff_w<TF>(
+    //            fields.mt.at("w")->fld.data(),
+    //            fields.mp.at("u")->fld.data(),
+    //            fields.mp.at("v")->fld.data(),
+    //            fields.mp.at("w")->fld.data(),
+    //            gd.dzi.data(), gd.dzhi.data(),
+    //            1./gd.dx, 1./gd.dy,
+    //            fields.sd.at("evisc")->fld.data(),
+    //            fields.rhoref.data(), fields.rhorefh.data(),
+    //            fields.visc,
+    //            gd.istart, gd.iend,
+    //            gd.jstart, gd.jend,
+    //            gd.kstart, gd.kend,
+    //            gd.icells, gd.ijcells);
 
-        for (auto it : fields.st)
-        {
-            //** SvdL: is this string comparison correct?
-            if( it.first == "sgstke12" ) // sgstke12 diffuses with Km
-            {
-                diff_c<TF, Surface_model::Disabled>(
-                        it.second->fld.data(), fields.sp.at(it.first)->fld.data(),
-                        gd.dzi.data(), gd.dzhi.data(), 1./(gd.dx*gd.dx), 1./(gd.dy*gd.dy),
-                        fields.sd.at("evisc")->fld.data(),
-                        fields.sp.at(it.first)->flux_bot.data(), fields.sp.at(it.first)->flux_top.data(),
-                        fields.rhoref.data(), fields.rhorefh.data(),
-                        fields.sp.at(it.first)->visc,
-                        gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-                        gd.icells, gd.ijcells);
-            }
-            else // all other scalars, diffuse with Kh
-            {
-                if( thermo.get_switch() == "0" ) // if no buoyancy, Kh = Km
-                {
-                    diff_c<TF, Surface_model::Disabled>(
-                            it.second->fld.data(), fields.sp.at(it.first)->fld.data(),
-                            gd.dzi.data(), gd.dzhi.data(), 1./(gd.dx*gd.dx), 1./(gd.dy*gd.dy),
-                            fields.sd.at("evisc")->fld.data(),
-                            fields.sp.at(it.first)->flux_bot.data(), fields.sp.at(it.first)->flux_top.data(),
-                            fields.rhoref.data(), fields.rhorefh.data(),
-                            fields.sp.at(it.first)->visc,
-                            gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-                            gd.icells, gd.ijcells);
-                }
-                else // assume buoyancy calculation is needed
-                {
-                    diff_c<TF, Surface_model::Disabled>(
-                            it.second->fld.data(), fields.sp.at(it.first)->fld.data(),
-                            gd.dzi.data(), gd.dzhi.data(), 1./(gd.dx*gd.dx), 1./(gd.dy*gd.dy),
-                            evisch_tmp->fld.data(),
-                            fields.sp.at(it.first)->flux_bot.data(), fields.sp.at(it.first)->flux_top.data(),
-                            fields.rhoref.data(), fields.rhorefh.data(),
-                            fields.sp.at(it.first)->visc,
-                            gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-                            gd.icells, gd.ijcells);
-                }
-            }
-        }
+    //    for (auto it : fields.st)
+    //    {
+    //        //** SvdL: is this string comparison correct?
+    //        if( it.first == "sgstke12" ) // sgstke12 diffuses with Km
+    //        {
+    //            diff_c<TF, Surface_model::Disabled>(
+    //                    it.second->fld.data(),
+    //                    fields.sp.at(it.first)->fld.data(),
+    //                    gd.dzi.data(), gd.dzhi.data(),
+    //                    1./(gd.dx*gd.dx), 1./(gd.dy*gd.dy),
+    //                    fields.sd.at("evisc")->fld.data(),
+    //                    fields.sp.at(it.first)->flux_bot.data(),
+    //                    fields.sp.at(it.first)->flux_top.data(),
+    //                    fields.rhoref.data(), fields.rhorefh.data(),
+    //                    fields.sp.at(it.first)->visc,
+    //                    gd.istart, gd.iend,
+    //                    gd.jstart, gd.jend,
+    //                    gd.kstart, gd.kend,
+    //                    gd.icells, gd.ijcells);
+    //        }
+    //        else // all other scalars, diffuse with Kh
+    //        {
+    //            if( thermo.get_switch() == "0" ) // if no buoyancy, Kh = Km
+    //            {
+    //                diff_c<TF, Surface_model::Disabled>(
+    //                        it.second->fld.data(),
+    //                        fields.sp.at(it.first)->fld.data(),
+    //                        gd.dzi.data(), gd.dzhi.data(),
+    //                        1./(gd.dx*gd.dx), 1./(gd.dy*gd.dy),
+    //                        fields.sd.at("evisc")->fld.data(),
+    //                        fields.sp.at(it.first)->flux_bot.data(),
+    //                        fields.sp.at(it.first)->flux_top.data(),
+    //                        fields.rhoref.data(), fields.rhorefh.data(),
+    //                        fields.sp.at(it.first)->visc,
+    //                        gd.istart, gd.iend,
+    //                        gd.jstart, gd.jend,
+    //                        gd.kstart, gd.kend,
+    //                        gd.icells, gd.ijcells);
+    //            }
+    //            else // assume buoyancy calculation is needed
+    //            {
+    //                diff_c<TF, Surface_model::Disabled>(
+    //                        it.second->fld.data(),
+    //                        fields.sp.at(it.first)->fld.data(),
+    //                        gd.dzi.data(), gd.dzhi.data(),
+    //                        1./(gd.dx*gd.dx), 1./(gd.dy*gd.dy),
+    //                        fields.sd.at("eviscs")->fld.data(),
+    //                        fields.sp.at(it.first)->flux_bot.data(),
+    //                        fields.sp.at(it.first)->flux_top.data(),
+    //                        fields.rhoref.data(), fields.rhorefh.data(),
+    //                        fields.sp.at(it.first)->visc,
+    //                        gd.istart, gd.iend,
+    //                        gd.jstart, gd.jend,
+    //                        gd.kstart, gd.kend,
+    //                        gd.icells, gd.ijcells);
+    //            }
+    //        }
+    //    }
     }
-
-    fields.release_tmp(evisch_tmp);
-    fields.release_tmp(buoy_tmp)  ;
 
     stats.calc_tend(*fields.mt.at("u"), tend_name);
     stats.calc_tend(*fields.mt.at("v"), tend_name);
@@ -1393,30 +1441,43 @@ template<typename TF>
 void Diff_deardorff<TF>::exec_viscosity(Thermo<TF>& thermo)
 {
     auto& gd = grid.get_grid_data();
-    auto str2_tmp   = fields.get_tmp(); // always store strain in temporary field
+    auto str2_tmp = fields.get_tmp();
 
     //** SvdL: Looking at DALES, the shear_squared just appears to be 2*(strain squared)..
     // That would be a simple fix.. https://github.com/dalesteam/dales/blob/master/src/modsubgrid.f90
+
     // Calculate strain rate using MO for velocity gradients lowest level.
     if (boundary.get_switch() == "surface" || boundary.get_switch() == "surface_bulk")
         calc_strain2<TF, Surface_model::Enabled>(
                 str2_tmp->fld.data(),
-                fields.mp.at("u")->fld.data(), fields.mp.at("v")->fld.data(), fields.mp.at("w")->fld.data(),
-                fields.mp.at("u")->flux_bot.data(), fields.mp.at("v")->flux_bot.data(),
+                fields.mp.at("u")->fld.data(),
+                fields.mp.at("v")->fld.data(),
+                fields.mp.at("w")->fld.data(),
+                fields.mp.at("u")->flux_bot.data(),
+                fields.mp.at("v")->flux_bot.data(),
                 boundary.ustar.data(), boundary.obuk.data(),
-                gd.z.data(), gd.dzi.data(), gd.dzhi.data(), 1./gd.dx, 1./gd.dy,
-                gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+                gd.z.data(), gd.dzi.data(), gd.dzhi.data(),
+                1./gd.dx, 1./gd.dy,
+                gd.istart, gd.iend,
+                gd.jstart, gd.jend,
+                gd.kstart, gd.kend,
                 gd.icells, gd.ijcells);
 
     // Calculate strain rate using resolved boundaries.
     else
         calc_strain2<TF, Surface_model::Disabled>(
                 str2_tmp->fld.data(),
-                fields.mp.at("u")->fld.data(), fields.mp.at("v")->fld.data(), fields.mp.at("w")->fld.data(),
-                fields.mp.at("u")->flux_bot.data(), fields.mp.at("v")->flux_bot.data(),
+                fields.mp.at("u")->fld.data(),
+                fields.mp.at("v")->fld.data(),
+                fields.mp.at("w")->fld.data(),
+                fields.mp.at("u")->flux_bot.data(),
+                fields.mp.at("v")->flux_bot.data(),
                 nullptr, nullptr,
-                gd.z.data(), gd.dzi.data(), gd.dzhi.data(), 1./gd.dx, 1./gd.dy,
-                gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+                gd.z.data(), gd.dzi.data(), gd.dzhi.data(),
+                1./gd.dx, 1./gd.dy,
+                gd.istart, gd.iend,
+                gd.jstart, gd.jend,
+                gd.kstart, gd.kend,
                 gd.icells, gd.ijcells);
 
     // Start with retrieving the stability information
@@ -1460,111 +1521,121 @@ void Diff_deardorff<TF>::exec_viscosity(Thermo<TF>& thermo)
     // assume buoyancy calculation is needed
     else
     {
-        auto buoy_tmp   = fields.get_tmp();
-        auto evisch_tmp = fields.get_tmp();
+        auto buoy_tmp = fields.get_tmp();
         thermo.get_buoyancy_fluxbot(*buoy_tmp, false);
         thermo.get_thermo_field(*buoy_tmp, "N2", false, false);
 
         if (boundary.get_switch() == "surface" || boundary.get_switch() == "surface_bulk")
         {
             calc_evisc<TF, Surface_model::Enabled>(
-                    fields.sd.at("evisc")->fld.data(), fields.sp.at("sgstke12")->fld.data(),
-                    fields.mp.at("u")->fld.data(), fields.mp.at("v")->fld.data(), fields.mp.at("w")->fld.data(), buoy_tmp->fld.data(),
-                    fields.mp.at("u")->flux_bot.data(), fields.mp.at("v")->flux_bot.data(), buoy_tmp->flux_bot.data(),
+                    fields.sd.at("evisc")->fld.data(),
+                    fields.sp.at("sgstke12")->fld.data(),
+                    fields.mp.at("u")->fld.data(),
+                    fields.mp.at("v")->fld.data(),
+                    fields.mp.at("w")->fld.data(),
+                    buoy_tmp->fld.data(),
+                    fields.mp.at("u")->flux_bot.data(),
+                    fields.mp.at("v")->flux_bot.data(),
+                    buoy_tmp->flux_bot.data(),
                     boundary.ustar.data(), boundary.obuk.data(),
                     gd.z.data(), gd.dz.data(), gd.dzi.data(),
                     gd.dx, gd.dy,
                     boundary.z0m, this->cn, this->cm,
-                    gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+                    gd.istart, gd.iend,
+                    gd.jstart, gd.jend,
+                    gd.kstart, gd.kend,
                     gd.icells, gd.jcells, gd.ijcells,
                     boundary_cyclic);
 
             // Calculate the eddy diffusivity for heat and scalars and store in tmp field
             calc_evisc_heat<TF, Surface_model::Enabled>(
-                    evisch_tmp->fld.data(), fields.sd.at("evisc")->fld.data(),
-                    fields.sp.at("sgstke12")->fld.data(), buoy_tmp->fld.data(),
+                    fields.sd.at("eviscs")->fld.data(),
+                    fields.sd.at("evisc")->fld.data(),
+                    fields.sp.at("sgstke12")->fld.data(),
+                    buoy_tmp->fld.data(),
                     gd.z.data(), gd.dz.data(), gd.dx, gd.dy,
                     boundary.z0m, this->cn, this->ch1, this->ch2,
-                    gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+                    gd.istart, gd.iend,
+                    gd.jstart, gd.jend,
+                    gd.kstart, gd.kend,
                     gd.icells, gd.jcells, gd.ijcells,
                     boundary_cyclic);
         }
         else
         {
-            calc_evisc<TF, Surface_model::Disabled>(
-                    fields.sd.at("evisc")->fld.data(), fields.sp.at("sgstke12")->fld.data(),
-                    fields.mp.at("u")->fld.data(), fields.mp.at("v")->fld.data(), fields.mp.at("w")->fld.data(), buoy_tmp->fld.data(),
-                    fields.mp.at("u")->flux_bot.data(), fields.mp.at("v")->flux_bot.data(), buoy_tmp->flux_bot.data(),
-                    nullptr, nullptr,
-                    gd.z.data(), gd.dz.data(), gd.dzi.data(),
-                    gd.dx, gd.dy,
-                    boundary.z0m, this->cn, this->cm,
-                    gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-                    gd.icells, gd.jcells, gd.ijcells,
-                    boundary_cyclic);
-
-            // Calculate the eddy diffusivity for heat and scalars and store in tmp field
-            calc_evisc_heat<TF, Surface_model::Disabled>(
-                    evisch_tmp->fld.data(), fields.sd.at("evisc")->fld.data(),
-                    fields.sp.at("sgstke12")->fld.data(), buoy_tmp->fld.data(),
-                    gd.z.data(), gd.dz.data(), gd.dx, gd.dy,
-                    boundary.z0m, this->cn, this->ch1, this->ch2,
-                    gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-                    gd.icells, gd.jcells, gd.ijcells,
-                    boundary_cyclic);
+//            calc_evisc<TF, Surface_model::Disabled>(
+//                    fields.sd.at("evisc")->fld.data(),
+//                    fields.sp.at("sgstke12")->fld.data(),
+//                    fields.mp.at("u")->fld.data(),
+//                    fields.mp.at("v")->fld.data(),
+//                    fields.mp.at("w")->fld.data(),
+//                    buoy_tmp->fld.data(),
+//                    fields.mp.at("u")->flux_bot.data(),
+//                    fields.mp.at("v")->flux_bot.data(),
+//                    buoy_tmp->flux_bot.data(),
+//                    nullptr, nullptr,
+//                    gd.z.data(), gd.dz.data(), gd.dzi.data(),
+//                    gd.dx, gd.dy,
+//                    boundary.z0m, this->cn, this->cm,
+//                    gd.istart, gd.iend,
+//                    gd.jstart, gd.jend,
+//                    gd.kstart, gd.kend,
+//                    gd.icells, gd.jcells, gd.ijcells,
+//                    boundary_cyclic);
+//
+//            // Calculate the eddy diffusivity for heat and scalars and store in tmp field
+//            calc_evisc_heat<TF, Surface_model::Disabled>(
+//                    fields.sd.at("eviscs")->fld.data(),
+//                    fields.sd.at("evisc")->fld.data(),
+//                    fields.sp.at("sgstke12")->fld.data(),
+//                    buoy_tmp->fld.data(),
+//                    gd.z.data(), gd.dz.data(), gd.dx, gd.dy,
+//                    boundary.z0m, this->cn, this->ch1, this->ch2,
+//                    gd.istart, gd.iend,
+//                    gd.jstart, gd.jend,
+//                    gd.kstart, gd.kend,
+//                    gd.icells, gd.jcells, gd.ijcells,
+//                    boundary_cyclic);
         }
 
+        // BvS: I left the tendency calculations of sgstke here; feels a bit strange
+        // to calculate them in `exec_viscosity`, but otherwise strain^2 has to be
+        // recalculated in diff->exec()...
         sgstke_buoy_tend<TF>(
-                fields.st.at("sgstke12")->fld.data(), fields.sp.at("sgstke12")->fld.data(),
-                evisch_tmp->fld.data(), buoy_tmp->fld.data(),
-                gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+                fields.st.at("sgstke12")->fld.data(),
+                fields.sp.at("sgstke12")->fld.data(),
+                fields.sd.at("eviscs")->fld.data(),
+                buoy_tmp->fld.data(),
+                gd.istart, gd.iend,
+                gd.jstart, gd.jend,
+                gd.kstart, gd.kend,
                 gd.icells, gd.ijcells);
 
         sgstke_diss_tend<TF>(
-                fields.st.at("sgstke12")->fld.data(), fields.sp.at("sgstke12")->fld.data(),
+                fields.st.at("sgstke12")->fld.data(),
+                fields.sp.at("sgstke12")->fld.data(),
                 buoy_tmp->fld.data(),
                 gd.z.data(), gd.dz.data(), gd.dx, gd.dy,
                 boundary.z0m, this->cn, this->ce1, this->ce2,
-                gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+                gd.istart, gd.iend,
+                gd.jstart, gd.jend,
+                gd.kstart, gd.kend,
                 gd.icells, gd.ijcells);
 
-        fields.release_tmp(buoy_tmp  );
-        fields.release_tmp(evisch_tmp);
+        fields.release_tmp(buoy_tmp);
     }
 
-    // Already execute shear production, buoyancy destruction and dissipation of SGS-TKE here
     sgstke_shear_tend<TF>(
-            fields.st.at("sgstke12")->fld.data(), fields.sp.at("sgstke12")->fld.data(),
-            fields.sd.at("evisc")->fld.data(), str2_tmp->fld.data(),
-            gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
+            fields.st.at("sgstke12")->fld.data(),
+            fields.sp.at("sgstke12")->fld.data(),
+            fields.sd.at("evisc")->fld.data(),
+            str2_tmp->fld.data(),
+            gd.istart, gd.iend,
+            gd.jstart, gd.jend,
+            gd.kstart, gd.kend,
             gd.icells, gd.ijcells);
 
-    //if ( thermo.get_switch() == "0")
-    //{
-    //    sgstke_diss_tend_neutral<TF>(
-    //                              fields.st.at("sgstke12")->fld.data(), fields.sp.at("sgstke12")->fld.data(),
-    //                              gd.z.data(), gd.dz.data(), gd.dx, gd.dy,
-    //                              boundary.z0m, this->ce1, this->ce2,
-    //                              gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-    //                              gd.icells, gd.ijcells);
-    //}
-    //else
-    //{
-    //    sgstke_buoy_tend<TF>(
-    //                      fields.st.at("sgstke12")->fld.data(), fields.sp.at("sgstke12")->fld.data(),
-    //                      evisch_tmp->fld.data(), buoy_tmp->fld.data(),
-    //                      gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-    //                      gd.icells, gd.ijcells);
-    //    sgstke_diss_tend<TF>(
-    //                      fields.st.at("sgstke12")->fld.data(), fields.sp.at("sgstke12")->fld.data(),
-    //                      buoy_tmp->fld.data(),
-    //                      gd.z.data(), gd.dz.data(), gd.dx, gd.dy,
-    //                      boundary.z0m, this->cn, this->ce1, this->ce2,
-    //                      gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend,
-    //                      gd.icells, gd.ijcells);
-    //}
-
-    // Release temporary fields for now
+    // Release temporary fields
     fields.release_tmp(str2_tmp);
 }
 #endif

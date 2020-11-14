@@ -1869,7 +1869,7 @@ void Diff_deardorff<TF>::diff_flux(
                     gd.icells, gd.ijcells);
         else
         {
-            if (varname == "sgstke12" || varname == "w")
+            if (!sw_buoy || varname == "sgstke12" || varname == "w")
                 calc_diff_flux_c<TF, Surface_model::Enabled>(
                         out.fld.data(), fld_in.fld.data(),
                         fields.sd.at("evisc")->fld.data(),

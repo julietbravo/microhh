@@ -40,6 +40,7 @@ namespace Constants
     template<typename TF> constexpr TF ep    = Rd<TF>/Rv<TF>;
     template<typename TF> constexpr TF rho_w = 1.e3;          // Density of water [kg m-3]
     template<typename TF> constexpr TF rho_i = 7.e2;          // Density of ice   [kg m-3]
+    template<typename TF> constexpr TF sgstke12_min = 1e-3;   // Minimum value SGS TKE [m2 s-2]
 
     // Coefficients saturation vapor pressure estimation
     // Original MicroHH (/ UCLA-LES)

@@ -86,7 +86,6 @@ void Limiter<TF>::exec(
     auto& gd = grid.get_grid_data();
 
     const TF minval = TF(0);
-    const TF minval_tke = TF(1.e-3);
 
     for (auto& name : limit_list)
     {
@@ -108,7 +107,7 @@ void Limiter<TF>::exec(
         tendency_limiter<TF>(
                 fields.st.at("sgstke12")->fld.data(),
                 fields.sp.at("sgstke12")->fld.data(),
-                minval_tke, dt,
+                Constants::sgstke12_min<TF>, dt,
                 gd.istart, gd.iend,
                 gd.jstart, gd.jend,
                 gd.kstart, gd.kend,

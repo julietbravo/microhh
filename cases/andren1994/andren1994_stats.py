@@ -30,7 +30,7 @@ if(True):
             Cv[t] += (ct.u[t,k] - ug) * (c.zh[k+1] - c.zh[k])
         Cu[t] *= -fc / ct.u_flux[t,0]
         Cv[t] *=  fc / ct.v_flux[t,0]
-    
+
     pl.figure()
     pl.subplot(121)
     pl.title('Fig 3a')

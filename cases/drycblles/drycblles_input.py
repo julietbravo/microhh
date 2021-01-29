@@ -21,16 +21,6 @@ z  = np.linspace(0.5*dz, zsize-0.5*dz, kmax)
 u  = np.zeros(np.size(z))
 v  = np.zeros(np.size(z))
 th = np.zeros(np.size(z))
-o3 = np.zeros(np.size(z))
-no = np.zeros(np.size(z))
-no2 = np.zeros(np.size(z))
-ho2 = np.zeros(np.size(z))
-rh = np.zeros(np.size(z))
-o3[:] = 69.0
-no[:] = 0.1
-no2[:] = 0.1
-rh[:] = 1.0
-ho2[:] = 0.050
 
 # linearly stratified profile
 for k in range(kmax):
@@ -62,20 +52,10 @@ nc_group_init = nc_file.createGroup("init");
 nc_u  = nc_group_init.createVariable("u" , float_type, ("z"))
 nc_v  = nc_group_init.createVariable("v" , float_type, ("z"))
 nc_th = nc_group_init.createVariable("th", float_type, ("z"))
-nc_o3 = nc_group_init.createVariable("o3", float_type, ("z"))
-nc_no2 = nc_group_init.createVariable("no2", float_type, ("z"))
-nc_no = nc_group_init.createVariable("no", float_type, ("z"))
-nc_rh = nc_group_init.createVariable("rh", float_type, ("z"))
-nc_ho2 = nc_group_init.createVariable("ho2", float_type, ("z"))
 
 nc_z [:] = z [:]
 nc_u [:] = u [:]
 nc_v [:] = v [:]
 nc_th[:] = th[:]
-nc_o3[:] = o3[:]
-nc_no2[:] = no2[:]
-nc_no[:] = no[:]
-nc_ho2[:] = ho2[:]
-nc_rh[:] = rh[:]
 
 nc_file.close()

@@ -145,5 +145,9 @@ class Land_surface
 
         std::vector<TF> gamma_T_dry;      // Heat conductivity dry soil (m s-1)
         std::vector<TF> rho_C;            // Volumetric soil heat capacity (J m-3 K-1)
+
+        // TMP TMP
+        std::vector<TF> thlbot_p;
+        std::vector<TF> qtbot_p;
 };
 #endif

@@ -1143,6 +1143,9 @@ void Land_surface<TF>::init()
     gamma_T_dry.resize(lookup_table_size);
     rho_C.resize(lookup_table_size);
 
+    thlbot_p.resize(gd.ijcells);
+    qtbot_p.resize(gd.ijcells);
+
     // Initialize the boundary cyclic.
     boundary_cyclic.init();
 }
@@ -1377,7 +1380,7 @@ void Land_surface<TF>::create_fields_grid_stats(
     if (cross.get_switch())
     {
         std::vector<std::string> allowed_crossvars = {
-            "t_soil", "theta_soil", "wl", "G", "rs_veg", "rs_soil"};
+            "t_soil", "theta_soil", "wl", "G", "rs_veg", "rs_soil", "thlbot_p", "qtbot_p"};
         crosslist = cross.get_enabled_variables(allowed_crossvars);
     }
 }
@@ -1744,6 +1747,10 @@ void Land_surface<TF>::exec_surface(
             agd.jstart, agd.jend,
             agd.icells);
 
+    // TMP TMP
+    thlbot_p = fields.sp.at("thl")->fld_bot;
+    qtbot_p = fields.sp.at("qt")->fld_bot;
+
     // Solve bottom boundary condition back
     lsm::calc_bcs(
             fields.sp.at("thl")->fld_bot.data(),
@@ -1922,6 +1929,11 @@ void Land_surface<TF>::exec_cross(Cross<TF>& cross, unsigned long iotime)
             cross.cross_plane(tiles.at("veg").rs.data(), "rs_veg", iotime);
         else if (it == "rs_soil")
             cross.cross_plane(tiles.at("soil").rs.data(), "rs_soil", iotime);
+
+        else if (it == "thlbot_p")
+            cross.cross_plane(thlbot_p.data(), "thlbot_p", iotime);
+        else if (it == "qtbot_p")
+            cross.cross_plane(qtbot_p.data(), "qtbot_p", iotime);
     }
 
     fields.release_tmp(tmp1);

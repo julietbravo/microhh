@@ -459,6 +459,7 @@ namespace
     void filter_diffuse_radiation(
             TF* const restrict sw_flux_dn_dif_f,
             TF* const restrict sw_flux_dn_sfc,
+            TF* const restrict sw_flux_up_sfc,
             TF* const restrict sw_flux_dn_dif,
             TF* const restrict tmp_2d,
             const double* const restrict sw_flux_dn,
@@ -466,6 +467,7 @@ namespace
             const TF* const restrict kernel_x,
             const TF* const restrict kernel_y,
             const int n_steps,
+            const double alb_dir, const double alb_dif,
             const int istart, const int iend,
             const int jstart, const int jend,
             const int igc, const int jgc,
@@ -535,6 +537,8 @@ namespace
                 const int ijk_nogc = (i-igc) + (j-jgc)*imax;
 
                 sw_flux_dn_sfc[ij] = sw_flux_dn_dir[ijk_nogc] + sw_flux_dn_dif_f[ij];
+                sw_flux_up_sfc[ij] = alb_dir * sw_flux_dn_dir[ijk_nogc]
+                                   + alb_dif * sw_flux_dn_dif_f[ij];
             }
     }
 
@@ -1465,11 +1469,14 @@ void Radiation_rrtmgp<TF>::exec(
                     {
                         // Misuse `t_lay`'s surface fields as tmp fields..
                         filter_diffuse_radiation(
-                                sw_flux_dn_dif_f.data(), sw_flux_dn_sfc.data(),
+                                sw_flux_dn_dif_f.data(),
+                                sw_flux_dn_sfc.data(),
+                                sw_flux_up_sfc.data(),
                                 t_lay->fld_bot.data(), t_lay->flux_bot.data(),
                                 flux_dn.ptr(), flux_dn_dir.ptr(),
                                 filter_kernel_x.data(), filter_kernel_y.data(),
                                 n_filter_iterations,
+                                sfc_alb_dir, sfc_alb_dif,
                                 gd.istart, gd.iend,
                                 gd.jstart, gd.jend,
                                 gd.igc, gd.jgc,

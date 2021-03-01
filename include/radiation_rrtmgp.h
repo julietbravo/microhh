@@ -23,6 +23,7 @@
 
 #include "radiation.h"
 #include "field3d_operators.h"
+#include "boundary_cyclic.h"
 
 #include "Gas_concs.h"
 #include "Gas_optics_rrtmgp.h"
@@ -76,6 +77,8 @@ class Radiation_rrtmgp : public Radiation<TF>
 		using Radiation<TF>::fields;
 		using Radiation<TF>::field3d_operators;
 
+        Boundary_cyclic<TF> boundary_cyclic;
+
         void create_column(
                 Input&, Netcdf_handle&, Thermo<TF>&, Stats<TF>&);
         void create_column_longwave(
@@ -96,6 +99,8 @@ class Radiation_rrtmgp : public Radiation<TF>
         void create_solver_shortwave(
                 Input&, Netcdf_handle&, Thermo<TF>&, Stats<TF>&, Column<TF>&,
                 const Gas_concs<double>&);
+
+        void create_diffuse_filter();
 
         void exec_longwave(
                 Thermo<TF>&, Timeloop<TF>&, Stats<TF>&,
@@ -181,11 +186,23 @@ class Radiation_rrtmgp : public Radiation<TF>
         std::unique_ptr<Cloud_optics<double>> cloud_lw;
         std::unique_ptr<Cloud_optics<double>> cloud_sw;
 
-        // Surface radiative fluxes
+        // Surface radiative fluxes, not used by RRTMGP itself
         std::vector<TF> lw_flux_dn_sfc;
         std::vector<TF> lw_flux_up_sfc;
 
         std::vector<TF> sw_flux_dn_sfc;
         std::vector<TF> sw_flux_up_sfc;
+
+        // Surface diffuse radiation filtering
+        bool sw_diffuse_filter;
+
+        TF sigma_filter;
+        TF sigma_filter_small;
+        int n_filter_iterations;
+
+        std::vector<TF> sw_flux_dn_dif_f;
+
+        std::vector<TF> filter_kernel_x;
+        std::vector<TF> filter_kernel_y;
 };
 #endif

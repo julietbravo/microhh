@@ -35,6 +35,7 @@
 #include "column.h"
 #include "constants.h"
 #include "timeloop.h"
+#include "fast_math.h"
 
 // RRTMGP headers.
 #include "Array.h"
@@ -455,6 +456,89 @@ namespace
     }
 
     template<typename TF>
+    void filter_diffuse_radiation(
+            TF* const restrict sw_flux_dn_dif_f,
+            TF* const restrict sw_flux_dn_sfc,
+            TF* const restrict sw_flux_dn_dif,
+            TF* const restrict tmp_2d,
+            const double* const restrict sw_flux_dn,
+            const double* const restrict sw_flux_dn_dir,
+            const TF* const restrict kernel_x,
+            const TF* const restrict kernel_y,
+            const int n_steps,
+            const int istart, const int iend,
+            const int jstart, const int jend,
+            const int igc, const int jgc,
+            const int icells, const int jcells,
+            const int ijcells, const int imax,
+            Boundary_cyclic<TF>& boundary_cyclic)
+    {
+        const int ngc = igc;  //....
+
+        // Calculate diffuse surface radiation
+        for (int j=jstart; j<jend; ++j)
+            for (int i=istart; i<iend; ++i)
+            {
+                const int ij = i + j*icells;
+                const int ijk_nogc = (i-igc) + (j-jgc)*imax;
+
+                sw_flux_dn_dif_f[ij] = sw_flux_dn[ijk_nogc] - sw_flux_dn_dir[ijk_nogc];
+            }
+
+        // Cyclic BCs
+        boundary_cyclic.exec_2d(sw_flux_dn_dif_f);
+
+        // Filter in `n` substeps
+        for (int n=0; n<n_steps; ++n)
+        {
+            // Filter in y-direction, include ghost cells
+            // in x-direction to prevent having to call boundary_cyclic
+            for (int j=jstart; j<jend; ++j)
+                for (int i=0; i<icells; ++i)
+                {
+                    const int ij1 = i + j*icells;
+
+                    TF sum=TF(0);
+                    for (int dj=-ngc; dj<ngc+1; ++dj)
+                    {
+                        const int ij2 = i + (j+dj)*icells;
+                        sum += kernel_y[dj+ngc] * sw_flux_dn_dif_f[ij2];
+                    }
+
+                    tmp_2d[ij1] = sum;
+                }
+
+            // Filter in x-direction, no ghost cells needed.
+            for (int j=jstart; j<jend; ++j)
+                for (int i=istart; i<iend; ++i)
+                {
+                    const int ij1 = i + j*icells;
+
+                    TF sum=TF(0);
+                    for (int di=-ngc; di<ngc+1; ++di)
+                    {
+                        const int ij2 = (i+di) + j*icells;
+                        sum += kernel_x[di+ngc] * tmp_2d[ij2];
+                    }
+
+                    sw_flux_dn_dif_f[ij1] = sum;
+                }
+
+            boundary_cyclic.exec_2d(sw_flux_dn_dif_f);
+        }
+
+        // Re-calculate new surface global radiation
+        for (int j=jstart; j<jend; ++j)
+            for (int i=istart; i<iend; ++i)
+            {
+                const int ij = i + j*icells;
+                const int ijk_nogc = (i-igc) + (j-jgc)*imax;
+
+                sw_flux_dn_sfc[ij] = sw_flux_dn_dir[ijk_nogc] + sw_flux_dn_dif_f[ij];
+            }
+    }
+
+    template<typename TF>
     void solve_longwave_column(
             std::unique_ptr<Optical_props_arry<TF>>& optical_props,
             Array<TF,2>& flux_up, Array<TF,2>& flux_dn, Array<TF,2>& flux_net,
@@ -709,7 +793,8 @@ namespace
 template<typename TF>
 Radiation_rrtmgp<TF>::Radiation_rrtmgp(
         Master& masterin, Grid<TF>& gridin, Fields<TF>& fieldsin, Input& inputin) :
-        Radiation<TF>(masterin, gridin, fieldsin, inputin)
+        Radiation<TF>(masterin, gridin, fieldsin, inputin),
+        boundary_cyclic(masterin, gridin)
 {
     swradiation = "rrtmgp";
 
@@ -738,6 +823,18 @@ Radiation_rrtmgp<TF>::Radiation_rrtmgp(
         lon = inputin.get_item<TF>("radiation", "lon", "");
     }
 
+    // Surface diffuse radiation filtering
+    sw_diffuse_filter = inputin.get_item<bool>("radiation", "swfilterdiffuse", "", false);
+    if (sw_diffuse_filter)
+    {
+        sigma_filter = inputin.get_item<double>("radiation", "sigma_filter", "");
+
+        const int igc = 3;  // for now..
+        const int jgc = 3;  // for now..
+        const int kgc = 0;
+        grid.set_minimum_ghost_cells(igc, jgc, kgc);
+    }
+
     auto& gd = grid.get_grid_data();
     fields.init_diagnostic_field("thlt_rad", "Tendency by radiation", "K s-1", "radiation", gd.sloc);
 }
@@ -759,6 +856,16 @@ void Radiation_rrtmgp<TF>::init(Timeloop<TF>& timeloop)
 
     sw_flux_dn_sfc.resize(gd.ijcells);
     sw_flux_up_sfc.resize(gd.ijcells);
+
+    // Surface diffuse radiation filtering
+    if (sw_diffuse_filter)
+    {
+        const int ngc = gd.igc;
+
+        sw_flux_dn_dif_f.resize(gd.ijcells);
+        filter_kernel_x.resize(2*ngc+1);
+        filter_kernel_y.resize(2*ngc+1);
+    }
 }
 
 template<typename TF>
@@ -804,6 +911,9 @@ void Radiation_rrtmgp<TF>::create(
         #endif
     }
 
+    // Setup spatial filtering diffuse surace radiation (if enabled..)
+    create_diffuse_filter();
+
     if (stats.get_switch() && sw_shortwave)
     {
         const std::string group_name = "radiation";
@@ -826,6 +936,9 @@ void Radiation_rrtmgp<TF>::create(
             allowed_crossvars_radiation.push_back("sw_flux_dn_clear");
             allowed_crossvars_radiation.push_back("sw_flux_dn_dir_clear");
         }
+
+        if (sw_diffuse_filter)
+            allowed_crossvars_radiation.push_back("sw_flux_dn_dif_filtered");
     }
 
     if (sw_longwave)
@@ -841,6 +954,54 @@ void Radiation_rrtmgp<TF>::create(
     }
 
     crosslist = cross.get_enabled_variables(allowed_crossvars_radiation);
+
+    // Init toolboxes
+    boundary_cyclic.init();
+}
+
+template<typename TF>
+void Radiation_rrtmgp<TF>::create_diffuse_filter()
+{
+    if (!sw_diffuse_filter)
+        return;
+
+    namespace fm = Fast_math;
+
+    auto& gd = grid.get_grid_data();
+    const int ngc = gd.igc;  // Assumes that igc == jgc...
+
+    // Filter standard deviation, to fit within 3 ghost cells
+    sigma_filter_small = std::min(gd.dx, gd.dy);
+
+    // Required number of iterations
+    const TF n = fm::pow2(sigma_filter) / fm::pow2(sigma_filter_small);
+    n_filter_iterations = ceil(n);
+    sigma_filter_small = pow(1./n_filter_iterations, TF(0.5)) * sigma_filter;
+
+    master.print_message(
+            "Setup surface diffuse filtering: sigma=%f m, n_iterations=%d\n",
+            sigma_filter_small, n_filter_iterations);
+
+    // Calculate filter kernels
+    TF filter_sum_x = TF(0);
+    TF filter_sum_y = TF(0);
+    for (int i=-ngc; i<ngc+1; ++i)
+    {
+        filter_kernel_x[i+ngc] = TF(1.)/(pow(TF(2)*M_PI, TF(0.5))*sigma_filter_small)
+            * exp(-fm::pow2(i*gd.dx)/(2*fm::pow2(sigma_filter_small))) * gd.dx;
+        filter_kernel_y[i+ngc] = TF(1.)/(pow(TF(2)*M_PI, TF(0.5))*sigma_filter_small)
+            * exp(-fm::pow2(i*gd.dy)/(2*fm::pow2(sigma_filter_small))) * gd.dy;
+
+        filter_sum_x += filter_kernel_x[i+ngc];
+        filter_sum_y += filter_kernel_y[i+ngc];
+    }
+
+    // Account for the truncated Gaussian tails:
+    for (int i=-ngc; i<ngc+1; ++i)
+    {
+        filter_kernel_x[i+ngc] /= filter_sum_x;
+        filter_kernel_y[i+ngc] /= filter_sum_y;
+    }
 }
 
 template<typename TF>
@@ -1299,12 +1460,32 @@ void Radiation_rrtmgp<TF>::exec(
                             gd.igc, gd.jgc,
                             gd.icells, gd.ijcells,
                             gd.imax);
+
+                    if (sw_diffuse_filter)
+                    {
+                        // Misuse `t_lay`'s surface fields as tmp fields..
+                        filter_diffuse_radiation(
+                                sw_flux_dn_dif_f.data(), sw_flux_dn_sfc.data(),
+                                t_lay->fld_bot.data(), t_lay->flux_bot.data(),
+                                flux_dn.ptr(), flux_dn_dir.ptr(),
+                                filter_kernel_x.data(), filter_kernel_y.data(),
+                                n_filter_iterations,
+                                gd.istart, gd.iend,
+                                gd.jstart, gd.jend,
+                                gd.igc, gd.jgc,
+                                gd.icells, gd.jcells,
+                                gd.ijcells, gd.imax,
+                                boundary_cyclic);
+                    }
                 }
                 else
                 {
                     // Set the surface fluxes to zero, for (e.g.) the land-surface model.
                     std::fill(sw_flux_up_sfc.begin(), sw_flux_up_sfc.end(), TF(0));
                     std::fill(sw_flux_dn_sfc.begin(), sw_flux_dn_sfc.end(), TF(0));
+
+                    if (sw_diffuse_filter)
+                        std::fill(sw_flux_dn_dif_f.begin(), sw_flux_dn_dif_f.end(), TF(0));
                 }
             }
         } // End try block.
@@ -1539,6 +1720,12 @@ void Radiation_rrtmgp<TF>::exec_all_stats(
                 save_stats_and_cross(flux_up,     "sw_flux_up_clear"    , gd.wloc);
                 save_stats_and_cross(flux_dn,     "sw_flux_dn_clear"    , gd.wloc);
                 save_stats_and_cross(flux_dn_dir, "sw_flux_dn_dir_clear", gd.wloc);
+            }
+
+            bool cross_diff = std::find(crosslist.begin(), crosslist.end(), "sw_flux_dn_dif_filtered") != crosslist.end();
+            if (sw_diffuse_filter && do_cross && cross_diff)
+            {
+                cross.cross_plane(sw_flux_dn_dif_f.data(), "sw_flux_dn_dif_filtered", iotime);
             }
 
             stats.set_time_series("sza", std::acos(mu0));

@@ -20,6 +20,8 @@
  * along with MicroHH.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <iostream>
+
 #include "advec_2i5.h"
 #include "grid.h"
 #include "fields.h"
@@ -29,13 +31,13 @@
 #include "finite_difference.h"
 #include "field3d_operators.h"
 
+static bool is_tuned = false;
 
 namespace
 {
     using namespace Finite_difference::O2;
     using namespace Finite_difference::O4;
     using namespace Finite_difference::O6;
-
 
     template<typename TF> __global__
     void advec_u_g(TF* __restrict__ ut, const TF* __restrict__ u,
@@ -659,11 +661,71 @@ double Advec_2i5<TF>::get_cfl(const double dt)
     return static_cast<double>(cfl);
 }
 
-
 template<typename TF>
 void Advec_2i5<TF>::exec(Stats<TF>& stats)
 {
     const Grid_data<TF>& gd = grid.get_grid_data();
+
+    if (!is_tuned)
+    {
+        auto tend = fields.get_tmp_g();
+
+        std::vector<int> blockis = {1,2,4,8,16,24,32,48,64,96,128,256};
+        std::vector<int> blockjs = {1,2,4,8,16,24,32,48,64,96,128,256};
+
+        cudaEvent_t start, stop;
+        cudaEventCreate(&start);
+        cudaEventCreate(&stop);
+        float milliseconds = 0;
+
+        std::cout << "standard block=" << gd.ithread_block << "x" << gd.jthread_block << std::endl;
+
+        for (auto& blocki : blockis)
+            for (auto& blockj : blockjs)
+            {
+                if (blocki * blockj > 1024)
+                    continue;
+
+                const int gridi = gd.imax/blocki + (gd.imax%blocki > 0);
+                const int gridj = gd.jmax/blockj + (gd.jmax%blockj > 0);
+
+                dim3 gridGPU (gridi, gridj, gd.kmax);
+                dim3 blockGPU(blocki, blockj, 1);
+
+                // Warmup
+                advec_s_g<TF><<<gridGPU, blockGPU>>>(
+                        tend->fld_g, fields.sp.at("th")->fld_g,
+                        fields.mp.at("u")->fld_g, fields.mp.at("v")->fld_g, fields.mp.at("w")->fld_g,
+                        fields.rhoref_g, fields.rhorefh_g,
+                        gd.dzi_g, gd.dxi, gd.dyi,
+                        gd.icells, gd.ijcells,
+                        gd.istart, gd.jstart, gd.kstart,
+                        gd.iend, gd.jend, gd.kend);
+
+                cuda_check_error();
+
+                cudaEventRecord(start);
+                for (int i=0; i<10; ++i)
+                    advec_s_g<TF><<<gridGPU, blockGPU>>>(
+                            tend->fld_g, fields.sp.at("th")->fld_g,
+                            fields.mp.at("u")->fld_g, fields.mp.at("v")->fld_g, fields.mp.at("w")->fld_g,
+                            fields.rhoref_g, fields.rhorefh_g,
+                            gd.dzi_g, gd.dxi, gd.dyi,
+                            gd.icells, gd.ijcells,
+                            gd.istart, gd.jstart, gd.kstart,
+                            gd.iend, gd.jend, gd.kend);
+                cudaEventRecord(stop);
+                cudaEventSynchronize(stop);
+                cudaEventElapsedTime(&milliseconds, start, stop);
+
+                std::cout << "blocki=" << blocki << ", blockj=" << blockj << ", time=" << milliseconds << std::endl;
+            }
+
+        fields.release_tmp_g(tend);
+        is_tuned = true;
+        throw 1;
+    }
+
     const int blocki = gd.ithread_block;
     const int blockj = gd.jthread_block;
     const int gridi = gd.imax/blocki + (gd.imax%blocki > 0);

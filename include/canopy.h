@@ -65,6 +65,7 @@ class Canopy
         TF cd;                // Drag coeffient canopy (-).
 
         // Vertical profiles
-        std::vector<TF> pad;  // Plant area density?
+        std::vector<TF> pad;   // Plant area density (m2 m-2)
+        std::vector<TF> padh;  // Plant area density (m2 m-2)
 };
 #endif

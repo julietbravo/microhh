@@ -63,7 +63,7 @@ pad_h = a_fourstep
 pad_h *= pai / np.sum(pad_h * dz)
 
 # Interpolate to full levels
-pad[:] = 0.5*(pad_h[1:] + pad_h[:-1])
+#pad[:] = 0.5*(pad_h[1:] + pad_h[:-1])
 
 # Constant velocity of (6,0,0)
 u[:] = 6.
@@ -72,14 +72,17 @@ u[:] = 6.
 nc_file = nc.Dataset('canopy_input.nc', mode='w', datamodel='NETCDF4', clobber=True)
 
 nc_file.createDimension('z', kmax)
-nc_z  = nc_file.createVariable('z' , float_type, ('z'))
+nc_file.createDimension('zh', kmax+1)
+nc_z = nc_file.createVariable('z' , float_type, ('z'))
+nc_zh = nc_file.createVariable('zh' , float_type, ('zh'))
 
 nc_group_init = nc_file.createGroup('init');
 nc_u = nc_group_init.createVariable('u' , float_type, ('z'))
-nc_pad = nc_group_init.createVariable('pad', float_type, ('z'))
+nc_padh = nc_group_init.createVariable('padh', float_type, ('zh'))
 
-nc_z [:] = z [:]
-nc_u [:] = u [:]
-nc_pad[:] = pad[:]
+nc_z[:] = z[:]
+nc_zh[:] = zh[:]
+nc_u[:] = u[:]
+nc_padh[:] = pad_h[:]
 
 nc_file.close()

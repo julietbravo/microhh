@@ -37,7 +37,7 @@ namespace
     namespace fm = Fast_math;
 
     template<typename TF>
-    void canopy_u(
+    void canopy_drag_u(
             TF* const restrict ut,
             const TF* const restrict u,
             const TF* const restrict v,
@@ -74,6 +74,84 @@ namespace
                     ut[ijk] += ftau * u_on_u;
                 }
     }
+
+    template<typename TF>
+    void canopy_drag_v(
+            TF* const restrict vt,
+            const TF* const restrict u,
+            const TF* const restrict v,
+            const TF* const restrict w,
+            const TF* const restrict pad,
+            const TF utrans,
+            const TF vtrans,
+            const TF cd,
+            const int istart, const int iend,
+            const int jstart, const int jend,
+            const int kstart, const int kend,
+            const int jstride, const int kstride)
+    {
+        const int ii = 1;
+        const int jj = jstride;
+        const int kk = kstride;
+
+        for (int k=kstart; k<kend; ++k)
+            for (int j=jstart; j<jend; ++j)
+                for (int i=istart; i<iend; ++i)
+                {
+                    const int ijk = i + j*jj + k*kk;
+
+                    // Interpolate `u` and `w` to `v` locations.
+                    const TF u_on_v = TF(0.25) * (u[ijk] + u[ijk+ii] + u[ijk+ii-jj] + v[ijk-jj]) + utrans;
+                    const TF v_on_v = v[ijk] + vtrans;
+                    const TF w_on_v = TF(0.25) * (w[ijk] + w[ijk-jj] + w[ijk-jj+kk] + w[ijk+kk]);
+
+                    const TF ftau = -cd * pad[k] *
+                        std::pow( fm::pow2(u_on_v) +
+                                  fm::pow2(v_on_v) +
+                                  fm::pow2(w_on_v), TF(0.5) );
+
+                    vt[ijk] += ftau * v_on_v;
+                }
+    }
+
+    template<typename TF>
+    void canopy_drag_w(
+            TF* const restrict wt,
+            const TF* const restrict u,
+            const TF* const restrict v,
+            const TF* const restrict w,
+            const TF* const restrict padh,
+            const TF utrans,
+            const TF vtrans,
+            const TF cd,
+            const int istart, const int iend,
+            const int jstart, const int jend,
+            const int kstart, const int kend,
+            const int jstride, const int kstride)
+    {
+        const int ii = 1;
+        const int jj = jstride;
+        const int kk = kstride;
+
+        for (int k=kstart+1; k<kend; ++k)
+            for (int j=jstart; j<jend; ++j)
+                for (int i=istart; i<iend; ++i)
+                {
+                    const int ijk = i + j*jj + k*kk;
+
+                    // Interpolate `u` and `v` to `w` locations.
+                    const TF u_on_w = TF(0.25) * (u[ijk] + u[ijk+ii] + u[ijk+ii-kk] + v[ijk-kk]) + utrans;
+                    const TF v_on_w = TF(0.25) * (v[ijk] + v[ijk+jj] + v[ijk+jj+kk] + v[ijk-kk]) + vtrans;
+                    const TF w_on_w = w[ijk];
+
+                    const TF ftau = -cd * padh[k] *
+                        std::pow( fm::pow2(u_on_w) +
+                                  fm::pow2(v_on_w) +
+                                  fm::pow2(w_on_w), TF(0.5) );
+
+                    wt[ijk] += ftau * w_on_w;
+                }
+    }
 }
 
 template<typename TF>
@@ -100,7 +178,8 @@ void Canopy<TF>::init()
 
     if (sw_canopy)
     {
-        pad.resize(gd.kcells);
+        pad.resize (gd.kcells);
+        padh.resize(gd.kcells);
     }
 }
 
@@ -113,10 +192,14 @@ void Canopy<TF>::create(
 
     auto& gd = grid.get_grid_data();
 
-    // Read plant area density at full levels.
+    // Read plant area density at half levels.
     Netcdf_group& group_nc = input_nc.get_group("init");
-    group_nc.get_variable(pad, "pad", {0}, {gd.ktot});
+    group_nc.get_variable(pad, "padh", {0}, {gd.ktot+1});
     std::rotate(pad.rbegin(), pad.rbegin() + gd.kstart, pad.rend());
+
+    // Interpolate plant area density to full levels.
+    for (int k=gd.kstart; k<gd.kend; k++)
+        pad[k] = TF(0.5)*(padh[k] + padh[k+1]);
 
     // Determine end of canopy
     for (int k=gd.kend-1; k>gd.kstart; k--)
@@ -137,12 +220,40 @@ void Canopy<TF>::exec()
     auto& gd = grid.get_grid_data();
 
     // Momentum drag
-    canopy_u(
+    canopy_drag_u(
         fields.mt.at("u")->fld.data(),
         fields.mp.at("u")->fld.data(),
         fields.mp.at("v")->fld.data(),
         fields.mp.at("w")->fld.data(),
         pad.data(),
+        grid.utrans,
+        grid.vtrans,
+        cd,
+        gd.istart, gd.iend,
+        gd.jstart, gd.jend,
+        gd.kstart, kend_canopy,
+        gd.icells, gd.ijcells);
+
+    canopy_drag_v(
+        fields.mt.at("v")->fld.data(),
+        fields.mp.at("u")->fld.data(),
+        fields.mp.at("v")->fld.data(),
+        fields.mp.at("w")->fld.data(),
+        pad.data(),
+        grid.utrans,
+        grid.vtrans,
+        cd,
+        gd.istart, gd.iend,
+        gd.jstart, gd.jend,
+        gd.kstart, kend_canopy,
+        gd.icells, gd.ijcells);
+
+    canopy_drag_w(
+        fields.mt.at("w")->fld.data(),
+        fields.mp.at("u")->fld.data(),
+        fields.mp.at("v")->fld.data(),
+        fields.mp.at("w")->fld.data(),
+        padh.data(),
         grid.utrans,
         grid.vtrans,
         cd,

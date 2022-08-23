@@ -57,7 +57,14 @@ class Canopy
         Fields<TF>& fields;
         Field3d_operators<TF> field3d_operators;
 
-        // Internal switches for various forcings
+        // Internal switches.
         bool sw_canopy;
+
+        // Canopy settings.
+        int kend_canopy;      // Vertical extent canopy (-).
+        TF cd;                // Drag coeffient canopy (-).
+
+        // Vertical profiles
+        std::vector<TF> pad;  // Plant area density?
 };
 #endif

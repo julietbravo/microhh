@@ -103,7 +103,7 @@ namespace
                     // Interpolate `u` and `w` to `v` locations.
                     const TF u_on_v = TF(0.25) * (u[ijk] + u[ijk+ii] + u[ijk+ii-jj] + v[ijk-jj]) + utrans;
                     const TF v_on_v = v[ijk] + vtrans;
-                    const TF w_on_v = TF(0.25) * (w[ijk] + w[ijk-jj] + w[ijk-jj+kk] + w[ijk+kk]);
+                    const TF w_on_v = TF(0.25) * (w[ijk] + w[ijk+kk] + w[ijk+kk-kk] + w[ijk-jj]);
 
                     const TF ftau = -cd * pad[k] *
                         std::pow( fm::pow2(u_on_v) +
@@ -141,7 +141,7 @@ namespace
 
                     // Interpolate `u` and `v` to `w` locations.
                     const TF u_on_w = TF(0.25) * (u[ijk] + u[ijk+ii] + u[ijk+ii-kk] + v[ijk-kk]) + utrans;
-                    const TF v_on_w = TF(0.25) * (v[ijk] + v[ijk+jj] + v[ijk+jj+kk] + v[ijk-kk]) + vtrans;
+                    const TF v_on_w = TF(0.25) * (v[ijk] + v[ijk+jj] + v[ijk+jj-kk] + v[ijk-kk]) + vtrans;
                     const TF w_on_w = w[ijk];
 
                     const TF ftau = -cd * padh[k] *

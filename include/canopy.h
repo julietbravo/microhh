@@ -48,8 +48,10 @@ class Canopy
         void exec();
 
         // GPU functions and variables
-        //void prepare_device();
-        //void clear_device();
+        #ifdef USECUDA
+        void prepare_device();
+        void clear_device();
+        #endif
 
     private:
         Master& master;
@@ -67,5 +69,10 @@ class Canopy
         // Vertical profiles
         std::vector<TF> pad;   // Plant area density (m2 m-2)
         std::vector<TF> padh;  // Plant area density (m2 m-2)
+
+        #ifdef USECUDA
+        TF* pad_g;
+        TF* padh_g;
+        #endif
 };
 #endif

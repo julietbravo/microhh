@@ -124,12 +124,12 @@ namespace
 }
 
 template<typename TF>
-void Boundary_surface_bulk<TF>::prepare_device()
+void Boundary_surface_bulk<TF>::prepare_device(Thermo<TF>& thermo)
 {
     auto& gd = grid.get_grid_data();
 
     // Prepare base boundary, for inflow profiles.
-    Boundary<TF>::prepare_device();
+    Boundary<TF>::prepare_device(thermo);
 
     const int dmemsize2d = gd.ijcells*sizeof(TF);
     const int dimemsize  = gd.icells*sizeof(TF);
@@ -155,7 +155,7 @@ void Boundary_surface_bulk<TF>::prepare_device()
 
 // TMP BVS
 template<typename TF>
-void Boundary_surface_bulk<TF>::forward_device()
+void Boundary_surface_bulk<TF>::forward_device(Thermo<TF>& thermo)
 {
     auto& gd = grid.get_grid_data();
 
@@ -171,7 +171,7 @@ void Boundary_surface_bulk<TF>::forward_device()
 
 // TMP BVS
 template<typename TF>
-void Boundary_surface_bulk<TF>::backward_device()
+void Boundary_surface_bulk<TF>::backward_device(Thermo<TF>& thermo)
 {
     auto& gd = grid.get_grid_data();
 
@@ -186,7 +186,7 @@ void Boundary_surface_bulk<TF>::backward_device()
 }
 
 template<typename TF>
-void Boundary_surface_bulk<TF>::clear_device()
+void Boundary_surface_bulk<TF>::clear_device(Thermo<TF>& thermo)
 {
     cuda_safe_call(cudaFree(obuk_g ));
     cuda_safe_call(cudaFree(ustar_g));

@@ -210,7 +210,7 @@ void Canopy<TF>::create(
         }
 }
 
-//#ifndef USECUDA
+#ifndef USECUDA
 template <typename TF>
 void Canopy<TF>::exec()
 {
@@ -262,7 +262,7 @@ void Canopy<TF>::exec()
         gd.kstart, kend_canopy,
         gd.icells, gd.ijcells);
 }
-//#endif
+#endif
 
 template class Canopy<double>;
 template class Canopy<float>;

@@ -119,9 +119,10 @@ class Boundary
         virtual TF* get_dvdz_g();
         virtual TF* get_dbdz_g();
 
-        virtual void prepare_device();
-        virtual void forward_device();
-        virtual void backward_device();
+        virtual void prepare_device(Thermo<TF>&);
+        virtual void clear_device(Thermo<TF>&);
+        virtual void forward_device(Thermo<TF>&);
+        virtual void backward_device(Thermo<TF>&);
         #endif
 
     protected:
@@ -170,7 +171,6 @@ class Boundary
         void process_inflow(Input&, Netcdf_handle&); ///< Process the time dependent settings from the ini file.
 
         #ifdef USECUDA
-        void clear_device();
         std::map<std::string, TF*> inflow_profiles_g;
         #endif
 

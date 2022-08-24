@@ -194,14 +194,14 @@ void Canopy<TF>::create(
 
     // Read plant area density at half levels.
     Netcdf_group& group_nc = input_nc.get_group("init");
-    group_nc.get_variable(pad, "padh", {0}, {gd.ktot+1});
-    std::rotate(pad.rbegin(), pad.rbegin() + gd.kstart, pad.rend());
+    group_nc.get_variable(padh, "padh", {0}, {gd.ktot+1});
+    std::rotate(padh.rbegin(), padh.rbegin() + gd.kstart, padh.rend());
 
     // Interpolate plant area density to full levels.
     for (int k=gd.kstart; k<gd.kend; k++)
         pad[k] = TF(0.5)*(padh[k] + padh[k+1]);
 
-    // Determine end of canopy
+    // Determine end of canopy.
     for (int k=gd.kend-1; k>gd.kstart; k--)
         if (pad[k] < Constants::dsmall && pad[k-1] >= Constants::dsmall)
         {
@@ -261,7 +261,6 @@ void Canopy<TF>::exec()
         gd.jstart, gd.jend,
         gd.kstart, kend_canopy,
         gd.icells, gd.ijcells);
-
 }
 //#endif
 

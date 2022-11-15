@@ -54,6 +54,7 @@
 #include "dump.h"
 #include "model.h"
 #include "source.h"
+#include "trajectory.h"
 
 #ifdef USECUDA
 #include <cuda_runtime_api.h>
@@ -136,10 +137,11 @@ Model<TF>::Model(Master& masterin, int argc, char *argv[]) :
 
         ib        = std::make_shared<Immersed_boundary<TF>>(master, *grid, *fields, *input);
 
-        stats     = std::make_shared<Stats <TF>>(master, *grid, *soil_grid, *fields, *advec, *diff, *input);
-        column    = std::make_shared<Column<TF>>(master, *grid, *fields, *input);
-        dump      = std::make_shared<Dump  <TF>>(master, *grid, *fields, *input);
-        cross     = std::make_shared<Cross <TF>>(master, *grid, *soil_grid, *fields, *input);
+        stats      = std::make_shared<Stats     <TF>>(master, *grid, *soil_grid, *fields, *advec, *diff, *input);
+        column     = std::make_shared<Column    <TF>>(master, *grid, *fields, *input);
+        dump       = std::make_shared<Dump      <TF>>(master, *grid, *fields, *input);
+        cross      = std::make_shared<Cross     <TF>>(master, *grid, *soil_grid, *fields, *input);
+        trajectory = std::make_shared<Trajectory<TF>>(master, *grid, *fields, *input);
 
         budget    = Budget<TF>::factory(master, *grid, *fields, *thermo, *diff, *advec, *force, *stats, *input);
 
@@ -196,6 +198,7 @@ void Model<TF>::init()
     column->init(timeloop->get_ifactor());
     cross->init(timeloop->get_ifactor());
     dump->init(timeloop->get_ifactor());
+    trajectory->init(timeloop->get_ifactor());
 }
 
 template<typename TF>
@@ -234,6 +237,7 @@ void Model<TF>::load()
     // Initialize the statistics file to open the possiblity to add profiles in other routines
     stats->create(*timeloop, sim_name);
     column->create(*input, *timeloop, sim_name);
+    trajectory->create(*input, *input_nc, *timeloop, sim_name);
 
     // Load the fields, and create the field statistics
     fields->load(timeloop->get_iotime());
@@ -627,6 +631,10 @@ void Model<TF>::calculate_statistics(int iteration, double time, unsigned long i
         thermo   ->exec_dump(*dump, iotime);
         microphys->exec_dump(*dump, iotime);
     }
+
+    // Save the trajectories.
+    if (trajectory->do_trajectory(itime))
+        trajectory->exec(*timeloop, time, itime);
 
     if (stats->do_statistics(itime))
     {

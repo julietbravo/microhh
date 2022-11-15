@@ -736,15 +736,16 @@ void Model<TF>::set_time_step()
 
     // Retrieve the maximum allowed time step per class.
     timeloop->set_time_step_limit();
-    timeloop->set_time_step_limit(advec    ->get_time_limit(timeloop->get_idt(), timeloop->get_dt()));
-    timeloop->set_time_step_limit(diff     ->get_time_limit(timeloop->get_idt(), timeloop->get_dt()));
-    timeloop->set_time_step_limit(thermo   ->get_time_limit(timeloop->get_idt(), timeloop->get_dt()));
-    timeloop->set_time_step_limit(microphys->get_time_limit(timeloop->get_idt(), timeloop->get_dt()));
-    timeloop->set_time_step_limit(radiation->get_time_limit(timeloop->get_itime()));
-    timeloop->set_time_step_limit(stats    ->get_time_limit(timeloop->get_itime()));
-    timeloop->set_time_step_limit(cross    ->get_time_limit(timeloop->get_itime()));
-    timeloop->set_time_step_limit(dump     ->get_time_limit(timeloop->get_itime()));
-    timeloop->set_time_step_limit(column   ->get_time_limit(timeloop->get_itime()));
+    timeloop->set_time_step_limit(advec     ->get_time_limit(timeloop->get_idt(), timeloop->get_dt()));
+    timeloop->set_time_step_limit(diff      ->get_time_limit(timeloop->get_idt(), timeloop->get_dt()));
+    timeloop->set_time_step_limit(thermo    ->get_time_limit(timeloop->get_idt(), timeloop->get_dt()));
+    timeloop->set_time_step_limit(microphys ->get_time_limit(timeloop->get_idt(), timeloop->get_dt()));
+    timeloop->set_time_step_limit(radiation ->get_time_limit(timeloop->get_itime()));
+    timeloop->set_time_step_limit(stats     ->get_time_limit(timeloop->get_itime()));
+    timeloop->set_time_step_limit(cross     ->get_time_limit(timeloop->get_itime()));
+    timeloop->set_time_step_limit(dump      ->get_time_limit(timeloop->get_itime()));
+    timeloop->set_time_step_limit(column    ->get_time_limit(timeloop->get_itime()));
+    timeloop->set_time_step_limit(trajectory->get_time_limit(timeloop->get_itime()));
 
     // Set the time step.
     timeloop->set_time_step();

@@ -437,7 +437,7 @@ void Model<TF>::exec()
                         radiation->exec_individual_column_stats(*column, *thermo, *timeloop, *stats);
                     }
 
-                    if (stats->do_statistics(itime) || cross->do_cross(itime) || dump->do_dump(itime))
+                    if (stats->do_statistics(itime) || cross->do_cross(itime) || dump->do_dump(itime) || trajectory->do_trajectory(itime))
                     {
                         #ifdef USECUDA
                         #pragma omp taskwait

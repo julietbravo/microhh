@@ -22,6 +22,8 @@
 
 #include <iomanip>
 #include <iostream>
+#include <string>
+#include <sstream>
 
 #include "master.h"
 #include "grid.h"
@@ -212,8 +214,7 @@ void Trajectory<TF>::exec(Timeloop<TF>& timeloop, double time, unsigned long iti
     const int mpicoordx = x_loc / sub_xsize;
     const int mpicoordy = y_loc / sub_ysize;
 
-    // YIKES <--- !!
-    const int mpiid_of_traj = mpicoordx + mpicoordy * md.npx;
+    const int mpiid_of_traj = master.calc_mpiid(mpicoordx, mpicoordy);
 
     if (md.mpiid == mpiid_of_traj)
     {

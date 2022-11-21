@@ -340,13 +340,13 @@ void Model<TF>::exec()
                 force    ->update_time_dependent(*timeloop);
                 radiation->update_time_dependent(*timeloop);
 
+                // Calculate the field means, in case needed.
+                fields->exec();
+
                 // Set the cyclic BCs of the prognostic 3D fields.
                 boundary->set_prognostic_cyclic_bcs();
                 boundary->set_prognostic_outflow_bcs();
                 boundary->set_ghost_cells();
-
-                // Calculate the field means, in case needed.
-                fields->exec();
 
                 // Get the viscosity to be used in diffusion.
                 diff->exec_viscosity(*thermo);

@@ -259,7 +259,7 @@ Source<TF>::Source(Master& master, Grid<TF>& grid, Fields<TF>& fields, Input& in
         // Option for (non-time dependent) profiles for vertical distribution emissions.
         sw_emission_profile = input.get_item<bool>("source", "sw_profile", "", false);
 
-        if (sw_emission_profile)
+        if (sw_emission_profile && !sw_input_nc)
         {
             // Find number of unique input profiles.
             profile_index = input.get_list<int>("source", "profile_index", "");
@@ -271,9 +271,6 @@ Source<TF>::Source(Master& master, Grid<TF>& grid, Fields<TF>& fields, Input& in
         // Limits on options (for now...)
         if (sw_emission_profile && (swtimedep_location || swtimedep_strength))
             throw std::runtime_error("Emission profiles with time dependent location/strength are not (yet) supported!");
-
-        if (sw_emission_profile && sw_input_nc)
-            throw std::runtime_error("Emission profiles with NetCDF input are not (yet) supported!");
 
         if (sw_emission_profile)
         {
@@ -349,6 +346,15 @@ void Source<TF>::create(Input& input, Netcdf_handle& input_nc)
 
         shape.resize(n_sources);
         norm.resize(n_sources);
+
+        if (sw_emission_profile)
+        {
+            profile_index.resize(n_sources);
+            source_group.get_variable(profile_index, "profile_index", {0}, {n_sources});
+
+            for (int& i : profile_index)
+                unique_profile_indexes.insert(i);
+        }
     }
 
     if (sw_emission_profile)

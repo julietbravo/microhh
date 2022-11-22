@@ -66,7 +66,7 @@ namespace
             std::string s(var_char.begin()+n*string_len, var_char.begin()+(n+1)*string_len);
             if (trim)
                 boost::trim(s);
-            var.push_back(s);
+            var[n] = s;
         }
     }
 

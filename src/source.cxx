@@ -20,11 +20,13 @@
  * along with MicroHH.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <boost/algorithm/string.hpp>
 #include <iostream>
 #include <cmath>
 #include <vector>
 #include <array>
 #include <algorithm>
+#include <numeric>
 
 #include "master.h"
 #include "input.h"
@@ -40,6 +42,34 @@
 namespace
 {
     namespace fm = Fast_math;
+
+    void get_variable_string(
+            std::vector<std::string>& var,
+            const std::string& var_name,
+            std::vector<int> i_count,
+            Netcdf_handle& input_nc,
+            const int string_len,
+            bool trim=true)
+    {
+        // Multiply all elements in i_count.
+        int total_count = std::accumulate(i_count.begin(), i_count.end(), 1, std::multiplies<>());
+
+        // Add the string length as the rightmost dimension.
+        i_count.push_back(string_len);
+
+        // Read the entire char array;
+        std::vector<char> var_char;
+        var_char = input_nc.get_variable<char>(var_name, i_count);
+
+        for (int n=0; n<total_count; ++n)
+        {
+            std::string s(var_char.begin()+n*string_len, var_char.begin()+(n+1)*string_len);
+            if (trim)
+                boost::trim(s);
+            var.push_back(s);
+        }
+    }
+
 
     template<typename TF>
     std::vector<int> calc_shape(
@@ -199,26 +229,32 @@ Source<TF>::Source(Master& master, Grid<TF>& grid, Fields<TF>& fields, Input& in
 
     if (swsource)
     {
-        sourcelist = input.get_list<std::string>("source", "sourcelist", "");
+        // Option to get source input from NetCDF file.
+        sw_input_nc = input.get_item<bool>("source", "swinputnc", "", false);
 
-        source_x0 = input.get_list<TF>("source", "source_x0", "");
-        source_y0 = input.get_list<TF>("source", "source_y0", "");
-        source_z0 = input.get_list<TF>("source", "source_z0", "");
-        sigma_x   = input.get_list<TF>("source", "sigma_x"  , "");
-        sigma_y   = input.get_list<TF>("source", "sigma_y"  , "");
-        sigma_z   = input.get_list<TF>("source", "sigma_z"  , "");
-        strength  = input.get_list<TF>("source", "strength" , "");
-        line_x    = input.get_list<TF>("source", "line_x"   , "");
-        line_y    = input.get_list<TF>("source", "line_y"   , "");
-        line_z    = input.get_list<TF>("source", "line_z"   , "");
+        if (!sw_input_nc)
+        {
+            sourcelist = input.get_list<std::string>("source", "sourcelist", "");
+
+            source_x0 = input.get_list<TF>("source", "source_x0", "");
+            source_y0 = input.get_list<TF>("source", "source_y0", "");
+            source_z0 = input.get_list<TF>("source", "source_z0", "");
+            sigma_x   = input.get_list<TF>("source", "sigma_x"  , "");
+            sigma_y   = input.get_list<TF>("source", "sigma_y"  , "");
+            sigma_z   = input.get_list<TF>("source", "sigma_z"  , "");
+            strength  = input.get_list<TF>("source", "strength" , "");
+            line_x    = input.get_list<TF>("source", "line_x"   , "");
+            line_y    = input.get_list<TF>("source", "line_y"   , "");
+            line_z    = input.get_list<TF>("source", "line_z"   , "");
+
+            // Switch between input in mass or volume ratio.
+            // swvmr=true = kmol tracer s-1, swvmr=false = kg tracer s-1
+            sw_vmr = input.get_list<bool>("source", "swvmr", "");
+        }
 
         // Timedep source location
         swtimedep_location = input.get_item<bool>("source", "swtimedep_location", "", false);
         swtimedep_strength = input.get_item<bool>("source", "swtimedep_strength", "", false);
-
-        // Switch between input in mass or volume ratio.
-        // swvmr=true = kmol tracer s-1, swvmr=false = kg tracer s-1
-        sw_vmr = input.get_list<bool>("source", "swvmr", "");
 
         // Option for (non-time dependent) profiles for vertical distribution emissions.
         sw_emission_profile = input.get_item<bool>("source", "sw_profile", "", false);
@@ -235,6 +271,9 @@ Source<TF>::Source(Master& master, Grid<TF>& grid, Fields<TF>& fields, Input& in
         // Limits on options (for now...)
         if (sw_emission_profile && (swtimedep_location || swtimedep_strength))
             throw std::runtime_error("Emission profiles with time dependent location/strength are not (yet) supported!");
+
+        if (sw_emission_profile && sw_input_nc)
+            throw std::runtime_error("Emission profiles with NetCDF input are not (yet) supported!");
 
         if (sw_emission_profile)
         {
@@ -256,7 +295,7 @@ void Source<TF>::init()
 {
     auto& gd = grid.get_grid_data();
 
-    if (swsource)
+    if (swsource and !sw_input_nc)
     {
         shape.resize(source_x0.size());
         norm.resize(source_x0.size());
@@ -271,6 +310,46 @@ void Source<TF>::create(Input& input, Netcdf_handle& input_nc)
 
     if (!swsource)
         return;
+
+    if (sw_input_nc)
+    {
+        // Get dimension size of source input.
+        Netcdf_group& source_group = input_nc.get_group("source");
+        const int n_sources = source_group.get_dimension_size("emission");
+        const int string_len = source_group.get_dimension_size("string_len");
+
+        auto get_source_var = [&](std::vector<TF>& data, const std::string name)
+        {
+            data.resize(n_sources);
+            source_group.get_variable(data, name, {0}, {n_sources});
+        };
+
+        sourcelist.resize(n_sources);
+        get_variable_string(sourcelist, "sourcelist", {n_sources}, source_group, string_len, true);
+
+        get_source_var(source_x0, "source_x0");
+        get_source_var(source_y0, "source_y0");
+        get_source_var(source_z0, "source_z0");
+        get_source_var(sigma_x, "sigma_x");
+        get_source_var(sigma_y, "sigma_y");
+        get_source_var(sigma_z, "sigma_z");
+        get_source_var(strength, "strength");
+        get_source_var(line_x, "line_x");
+        get_source_var(line_y, "line_y");
+        get_source_var(line_z, "line_z");
+        
+        // Switch between input in mass or volume ratio.
+        // swvmr=true = kmol tracer s-1, swvmr=false = kg tracer s-1
+        std::vector<int> sw_vmr_tmp = std::vector<int>(n_sources);
+        source_group.get_variable(sw_vmr_tmp, "sw_vmr", {0}, {n_sources});
+
+        sw_vmr.resize(n_sources);
+        for (int i=0; i<n_sources; ++i)
+            sw_vmr[i] = bool(sw_vmr_tmp[i]);
+
+        shape.resize(n_sources);
+        norm.resize(n_sources);
+    }
 
     if (sw_emission_profile)
     {

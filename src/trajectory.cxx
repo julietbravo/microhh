@@ -181,121 +181,125 @@ void Trajectory<TF>::exec(Timeloop<TF>& timeloop, double time, unsigned long iti
     z_loc = ifac.fac0 * z_in[ifac.index0] + ifac.fac1 * z_in[ifac.index1];
 
     // Bounds check on domain. NOTE: keep the `>=xsize` instead of `>xsize`...
+    bool in_domain = true;
     if (x_loc < 0 || x_loc >= gd.xsize ||
         y_loc < 0 || y_loc >= gd.ysize ||
         z_loc < 0 || z_loc >= gd.zsize)
-        throw std::runtime_error("Trajectory is out of domain!");
+        in_domain = false;
 
-    // 2. Get indexes and interpolation factors for full and half levels.
-    auto get_index_fac = [&](const std::vector<TF>& x_vec, const TF x_val, const int size)
+    if (in_domain)
     {
-        // 1. Get index in `x_vec` left of `x_val`.
-        int n0;
-        for (int n=0; n<size; ++n)
+        // 2. Get indexes and interpolation factors for full and half levels.
+        auto get_index_fac = [&](const std::vector<TF>& x_vec, const TF x_val, const int size)
         {
-            if (x_vec[n] <= x_val && x_vec[n+1] > x_val)
+            // 1. Get index in `x_vec` left of `x_val`.
+            int n0;
+            for (int n=0; n<size; ++n)
             {
-                n0 = n;
-                break;
+                if (x_vec[n] <= x_val && x_vec[n+1] > x_val)
+                {
+                    n0 = n;
+                    break;
+                }
+            }
+
+            // 2. Calculate interpolation factor.
+            const TF fac = TF(1) - (x_val - x_vec[n0]) / (x_vec[n0+1] - x_vec[n0]);
+
+            return std::pair(n0, fac);
+        };
+
+        // Calculate `mpiid` which contains the current trajectory location.
+        // All MPI tasks need to know this ID for the `broadcast` below.
+        const TF sub_xsize = gd.imax * gd.dx;
+        const TF sub_ysize = gd.jmax * gd.dy;
+
+        const int mpicoordx = x_loc / sub_xsize;
+        const int mpicoordy = y_loc / sub_ysize;
+
+        const int mpiid_of_traj = master.calc_mpiid(mpicoordx, mpicoordy);
+
+        if (md.mpiid == mpiid_of_traj)
+        {
+            std::pair<int, TF> ipx  = get_index_fac(gd.x,  x_loc, gd.icells);
+            std::pair<int, TF> ipxh = get_index_fac(gd.xh, x_loc, gd.icells);
+
+            std::pair<int, TF> jpx  = get_index_fac(gd.y,  y_loc, gd.jcells);
+            std::pair<int, TF> jpxh = get_index_fac(gd.yh, y_loc, gd.jcells);
+
+            std::pair<int, TF> kpx  = get_index_fac(gd.z,  z_loc, gd.kcells);
+            std::pair<int, TF> kpxh = get_index_fac(gd.zh, z_loc, gd.kcells);
+
+            // Put in vector for easier access with `field3d->loc`.
+            std::vector<std::pair<int, TF>> ix = {ipx, ipxh};
+            std::vector<std::pair<int, TF>> iy = {jpx, jpxh};
+            std::vector<std::pair<int, TF>> iz = {kpx, kpxh};
+
+            // Interpolate variables.
+            auto ijk = [&](const int i, const int j, const int k)
+            {
+                return i + j*gd.icells + k*gd.ijcells;
+            };
+
+            auto interpolate = [&](
+                    const std::vector<TF>& fld,
+                    std::pair<int, TF> fx,
+                    std::pair<int, TF> fy,
+                    std::pair<int, TF> fz)
+            {
+                // Short-cuts.
+                const int i0 = fx.first;
+                const int j0 = fy.first;
+                const int k0 = fz.first;
+
+                const TF fx0 = fx.second;
+                const TF fx1 = TF(1) - fx.second;
+                const TF fy0 = fy.second;
+                const TF fy1 = TF(1) - fy.second;
+                const TF fz0 = fz.second;
+                const TF fz1 = TF(1) - fz.second;
+
+                // Tri-linear interpolation onto requested location.
+                const TF value = 
+                    fx0 * fy0 * fz0 * fld[ijk(i0,   j0,   k0  )] + 
+                    fx1 * fy0 * fz0 * fld[ijk(i0+1, j0,   k0  )] + 
+                    fx0 * fy1 * fz0 * fld[ijk(i0,   j0+1, k0  )] + 
+                    fx1 * fy1 * fz0 * fld[ijk(i0+1, j0+1, k0  )] + 
+                    fx0 * fy0 * fz1 * fld[ijk(i0,   j0,   k0+1)] + 
+                    fx1 * fy0 * fz1 * fld[ijk(i0+1, j0,   k0+1)] + 
+                    fx0 * fy1 * fz1 * fld[ijk(i0,   j0+1, k0+1)] + 
+                    fx1 * fy1 * fz1 * fld[ijk(i0+1, j0+1, k0+1)];
+
+                return value;
+            };
+
+            for (auto& name : variables)
+            {
+                const int loc_i = fields.ap.at(name)->loc[0];
+                const int loc_j = fields.ap.at(name)->loc[1];
+                const int loc_k = fields.ap.at(name)->loc[2];
+
+                time_series.at(name).data = interpolate(
+                        fields.ap.at(name)->fld, ix[loc_i], iy[loc_j], iz[loc_k]);
             }
         }
 
-        // 2. Calculate interpolation factor.
-        const TF fac = TF(1) - (x_val - x_vec[n0]) / (x_vec[n0+1] - x_vec[n0]);
+        // This is a bit wasteful (?), a specific send/recv should be enough,
+        // but we are only sending one float/double per variable....
+        for (auto& name : variables)
+            master.broadcast(&time_series.at(name).data, 1, mpiid_of_traj);
 
-        return std::pair(n0, fac);
-    };
+        // Store value in NetCDF file.
+        const std::vector<int> time_index{statistics_counter};
 
-    // Calculate `mpiid` which contains the current trajectory location.
-    // All MPI tasks need to know this ID for the `broadcast` below.
-    const TF sub_xsize = gd.imax * gd.dx;
-    const TF sub_ysize = gd.jmax * gd.dy;
-
-    const int mpicoordx = x_loc / sub_xsize;
-    const int mpicoordy = y_loc / sub_ysize;
-
-    const int mpiid_of_traj = master.calc_mpiid(mpicoordx, mpicoordy);
-
-    if (md.mpiid == mpiid_of_traj)
-    {
-        std::pair<int, TF> ipx  = get_index_fac(gd.x,  x_loc, gd.icells);
-        std::pair<int, TF> ipxh = get_index_fac(gd.xh, x_loc, gd.icells);
-
-        std::pair<int, TF> jpx  = get_index_fac(gd.y,  y_loc, gd.jcells);
-        std::pair<int, TF> jpxh = get_index_fac(gd.yh, y_loc, gd.jcells);
-
-        std::pair<int, TF> kpx  = get_index_fac(gd.z,  z_loc, gd.kcells);
-        std::pair<int, TF> kpxh = get_index_fac(gd.zh, z_loc, gd.kcells);
-
-        // Put in vector for easier access with `field3d->loc`.
-        std::vector<std::pair<int, TF>> ix = {ipx, ipxh};
-        std::vector<std::pair<int, TF>> iy = {jpx, jpxh};
-        std::vector<std::pair<int, TF>> iz = {kpx, kpxh};
-
-        // Interpolate variables.
-        auto ijk = [&](const int i, const int j, const int k)
-        {
-            return i + j*gd.icells + k*gd.ijcells;
-        };
-
-        auto interpolate = [&](
-                const std::vector<TF>& fld,
-                std::pair<int, TF> fx,
-                std::pair<int, TF> fy,
-                std::pair<int, TF> fz)
-        {
-            // Short-cuts.
-            const int i0 = fx.first;
-            const int j0 = fy.first;
-            const int k0 = fz.first;
-
-            const TF fx0 = fx.second;
-            const TF fx1 = TF(1) - fx.second;
-            const TF fy0 = fy.second;
-            const TF fy1 = TF(1) - fy.second;
-            const TF fz0 = fz.second;
-            const TF fz1 = TF(1) - fz.second;
-
-            // Tri-linear interpolation onto requested location.
-            const TF value = 
-                fx0 * fy0 * fz0 * fld[ijk(i0,   j0,   k0  )] + 
-                fx1 * fy0 * fz0 * fld[ijk(i0+1, j0,   k0  )] + 
-                fx0 * fy1 * fz0 * fld[ijk(i0,   j0+1, k0  )] + 
-                fx1 * fy1 * fz0 * fld[ijk(i0+1, j0+1, k0  )] + 
-                fx0 * fy0 * fz1 * fld[ijk(i0,   j0,   k0+1)] + 
-                fx1 * fy0 * fz1 * fld[ijk(i0+1, j0,   k0+1)] + 
-                fx0 * fy1 * fz1 * fld[ijk(i0,   j0+1, k0+1)] + 
-                fx1 * fy1 * fz1 * fld[ijk(i0+1, j0+1, k0+1)];
-
-            return value;
-        };
+        time_var->insert(time, time_index);
+        x_var->insert(x_loc, time_index);
+        y_var->insert(y_loc, time_index);
+        z_var->insert(z_loc, time_index);
 
         for (auto& name : variables)
-        {
-            const int loc_i = fields.ap.at(name)->loc[0];
-            const int loc_j = fields.ap.at(name)->loc[1];
-            const int loc_k = fields.ap.at(name)->loc[2];
-
-            time_series.at(name).data = interpolate(
-                    fields.ap.at(name)->fld, ix[loc_i], iy[loc_j], iz[loc_k]);
-        }
+            time_series.at(name).ncvar.insert(time_series.at(name).data, time_index);
     }
-
-    // This is a bit wasteful (?), a specific send/recv should be enough,
-    // but we are only sending one float/double per variable....
-    for (auto& name : variables)
-        master.broadcast(&time_series.at(name).data, 1, mpiid_of_traj);
-
-    // Store value in NetCDF file.
-    const std::vector<int> time_index{statistics_counter};
-
-    time_var->insert(time, time_index);
-    x_var->insert(x_loc, time_index);
-    y_var->insert(y_loc, time_index);
-    z_var->insert(z_loc, time_index);
-
-    for (auto& name : variables)
-        time_series.at(name).ncvar.insert(time_series.at(name).data, time_index);
 
     // Synchronize the NetCDF file
     data_file->sync();

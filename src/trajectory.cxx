@@ -34,6 +34,13 @@
 #include "timeloop.h"
 #include "trajectory.h"
 
+namespace
+{
+    template<typename TF> TF netcdf_fp_fillvalue();
+    template<> double netcdf_fp_fillvalue<double>() { return NC_FILL_DOUBLE; }
+    template<> float  netcdf_fp_fillvalue<float>()  { return NC_FILL_FLOAT; }
+}
+
 template<typename TF>
 Trajectory<TF>::Trajectory(Master& masterin, Grid<TF>& gridin, Fields<TF>& fieldsin, Input& inputin) :
     master(masterin), grid(gridin), fields(fieldsin)
@@ -170,24 +177,32 @@ void Trajectory<TF>::exec(Timeloop<TF>& timeloop, double time, unsigned long iti
     // Write message in trajectory stats is triggered.
     master.print_message("Saving trajectory for time %f\n", time);
 
-    auto& gd = grid.get_grid_data();
-    auto& md = master.get_MPI_data();
+    auto& gd=grid.get_grid_data();
+    auto& md=master.get_MPI_data();
 
-    // 1. Get (x,y,z) location by interpolation of the input coordinates in time.
-    Interpolation_factors<TF> ifac = timeloop.get_interpolation_factors(time_in);
+    bool do_trajectory = true;
 
-    x_loc = ifac.fac0 * x_in[ifac.index0] + ifac.fac1 * x_in[ifac.index1];
-    y_loc = ifac.fac0 * y_in[ifac.index0] + ifac.fac1 * y_in[ifac.index1];
-    z_loc = ifac.fac0 * z_in[ifac.index0] + ifac.fac1 * z_in[ifac.index1];
+    // 0.9 Check on time bounds. Trajectory can start/end during the simulation.
+    if (time < time_in[0] || time > time_in[time_in.size()-1])
+        do_trajectory = false;
 
-    // Bounds check on domain. NOTE: keep the `>=xsize` instead of `>xsize`...
-    bool in_domain = true;
-    if (x_loc < 0 || x_loc >= gd.xsize ||
-        y_loc < 0 || y_loc >= gd.ysize ||
-        z_loc < 0 || z_loc >= gd.zsize)
-        in_domain = false;
+    if (do_trajectory)
+    {
+        // 1. Get (x,y,z) location by interpolation of the input coordinates in time.
+        Interpolation_factors<TF> ifac = timeloop.get_interpolation_factors(time_in);
 
-    if (in_domain)
+        x_loc = ifac.fac0 * x_in[ifac.index0] + ifac.fac1 * x_in[ifac.index1];
+        y_loc = ifac.fac0 * y_in[ifac.index0] + ifac.fac1 * y_in[ifac.index1];
+        z_loc = ifac.fac0 * z_in[ifac.index0] + ifac.fac1 * z_in[ifac.index1];
+
+        // Bounds check on domain. NOTE: keep the `>=xsize` instead of `>xsize`...
+        if (x_loc < 0 || x_loc >= gd.xsize ||
+            y_loc < 0 || y_loc >= gd.ysize ||
+            z_loc < 0 || z_loc >= gd.zsize)
+            do_trajectory = false;
+    }
+
+    if (do_trajectory)
     {
         // 2. Get indexes and interpolation factors for full and half levels.
         auto get_index_fac = [&](const std::vector<TF>& x_vec, const TF x_val, const int size)
@@ -260,14 +275,14 @@ void Trajectory<TF>::exec(Timeloop<TF>& timeloop, double time, unsigned long iti
                 const TF fz1 = TF(1) - fz.second;
 
                 // Tri-linear interpolation onto requested location.
-                const TF value = 
-                    fx0 * fy0 * fz0 * fld[ijk(i0,   j0,   k0  )] + 
-                    fx1 * fy0 * fz0 * fld[ijk(i0+1, j0,   k0  )] + 
-                    fx0 * fy1 * fz0 * fld[ijk(i0,   j0+1, k0  )] + 
-                    fx1 * fy1 * fz0 * fld[ijk(i0+1, j0+1, k0  )] + 
-                    fx0 * fy0 * fz1 * fld[ijk(i0,   j0,   k0+1)] + 
-                    fx1 * fy0 * fz1 * fld[ijk(i0+1, j0,   k0+1)] + 
-                    fx0 * fy1 * fz1 * fld[ijk(i0,   j0+1, k0+1)] + 
+                const TF value =
+                    fx0 * fy0 * fz0 * fld[ijk(i0,   j0,   k0  )] +
+                    fx1 * fy0 * fz0 * fld[ijk(i0+1, j0,   k0  )] +
+                    fx0 * fy1 * fz0 * fld[ijk(i0,   j0+1, k0  )] +
+                    fx1 * fy1 * fz0 * fld[ijk(i0+1, j0+1, k0  )] +
+                    fx0 * fy0 * fz1 * fld[ijk(i0,   j0,   k0+1)] +
+                    fx1 * fy0 * fz1 * fld[ijk(i0+1, j0,   k0+1)] +
+                    fx0 * fy1 * fz1 * fld[ijk(i0,   j0+1, k0+1)] +
                     fx1 * fy1 * fz1 * fld[ijk(i0+1, j0+1, k0+1)];
 
                 return value;
@@ -282,6 +297,11 @@ void Trajectory<TF>::exec(Timeloop<TF>& timeloop, double time, unsigned long iti
                 time_series.at(name).data = interpolate(
                         fields.ap.at(name)->fld, ix[loc_i], iy[loc_j], iz[loc_k]);
             }
+        }
+        else
+        {
+            for (auto& name : variables)
+                time_series.at(name).data = netcdf_fp_fillvalue<TF>();
         }
 
         // This is a bit wasteful (?), a specific send/recv should be enough,

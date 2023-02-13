@@ -169,7 +169,13 @@ Canopy<TF>::Canopy(
     cd = inputin.get_item<TF>("canopy", "cd", "");
 
     if (sw_3d_pad)
+    {
+        #ifdef USECUDA
+        raise std::runtime_error("3D plant area density is not yet implemented on GPU.");
+        #endif
+
         ktot_canopy = inputin.get_item<int>("canopy", "ktot_canopy", "");
+    }
 }
 
 template <typename TF>
@@ -300,12 +306,15 @@ void Canopy<TF>::exec()
                 gd.kstart, kend_canopy,
                 gd.icells, gd.ijcells);
 
+        // Switch between half-level profile or full level 3D pad for `w`.
+        const TF* pad_w = sw_pad_3d ? pad.data() : padh.data();
+
         canopy_drag_w<TF, sw_pad_3d>(
                 fields.mt.at("w")->fld.data(),
                 fields.mp.at("u")->fld.data(),
                 fields.mp.at("v")->fld.data(),
                 fields.mp.at("w")->fld.data(),
-                padh.data(),
+                pad_w,
                 grid.utrans,
                 grid.vtrans,
                 cd,

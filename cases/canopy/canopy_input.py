@@ -9,18 +9,22 @@ float_type = 'f8'
 # Get number of vertical levels and size from .ini file,
 with open('canopy.ini') as f:
     for line in f:
+        if(line.split('=')[0]=='itot'):
+            itot = int(line.split('=')[1])
+        if(line.split('=')[0]=='jtot'):
+            jtot = int(line.split('=')[1])
         if(line.split('=')[0]=='ktot'):
-            kmax = int(line.split('=')[1])
+            ktot = int(line.split('=')[1])
         if(line.split('=')[0]=='zsize'):
             zsize = float(line.split('=')[1])
 
 # Define vertical grid and fields,
-dz = zsize / kmax
+dz = zsize / ktot
 z = np.arange(0.5*dz, zsize, dz)
 zh = np.arange(0, zsize+0.1, dz)
 
-u = np.zeros(kmax)
-pad = np.zeros(kmax)
+u = np.zeros(ktot)
+pad = np.zeros(ktot)
 
 # Vertical extent canopy.
 # This is not very flexible with the area densities defined below.
@@ -33,14 +37,14 @@ a0 = 5.32e-2
 pai = 0.479
 
 # Vertical profiles PAD with different smoothness at top.
-a_sharp = np.zeros(kmax+1)
+a_sharp = np.zeros(ktot+1)
 a_sharp[:10] = a0
 
-a_twostep = np.zeros(kmax+1)
+a_twostep = np.zeros(ktot+1)
 a_twostep[:9] = a0
 a_twostep[9] = 0.5*a0
 
-a_fourstep = np.zeros(kmax+1)
+a_fourstep = np.zeros(ktot+1)
 a_fourstep[:8] = a0
 a_fourstep[8] = 7/8*a0
 a_fourstep[9] = 4/8*a0
@@ -71,8 +75,8 @@ u[:] = 6.
 # Write NetCDF input.
 nc_file = nc.Dataset('canopy_input.nc', mode='w', datamodel='NETCDF4', clobber=True)
 
-nc_file.createDimension('z', kmax)
-nc_file.createDimension('zh', kmax+1)
+nc_file.createDimension('z', ktot)
+nc_file.createDimension('zh', ktot+1)
 nc_z = nc_file.createVariable('z' , float_type, ('z'))
 nc_zh = nc_file.createVariable('zh' , float_type, ('zh'))
 
@@ -86,3 +90,14 @@ nc_u[:] = u[:]
 nc_padh[:] = pad_h[:]
 
 nc_file.close()
+
+# 3D plant area density input.
+ktot_canopy = 4
+pad_3d = np.zeros((ktot_canopy, jtot, itot), dtype=np.float64)
+
+pad_3d[0,:,:] = 0.5
+pad_3d[1,:,:] = 0.4
+pad_3d[2,:,:] = 0.3
+pad_3d[3,:,:] = 0.2
+
+pad_3d.tofile('pad.0000000')

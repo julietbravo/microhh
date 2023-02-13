@@ -35,6 +35,7 @@ template<typename> class Field3d_operators;
 template<typename> class Timedep;
 template<typename> class Stats;
 template<typename> class Thermo;
+template<typename> class Field3d_io;
 
 template<typename TF>
 class Canopy
@@ -58,11 +59,14 @@ class Canopy
         Grid<TF>& grid;
         Fields<TF>& fields;
         Field3d_operators<TF> field3d_operators;
+        Field3d_io<TF> field3d_io;
 
         // Internal switches.
         bool sw_canopy;
+        bool sw_3d_pad;
 
         // Canopy settings.
+        int ktot_canopy;      // Vertical extent canopy (-).
         int kend_canopy;      // Vertical extent canopy (-).
         TF cd;                // Drag coeffient canopy (-).
 

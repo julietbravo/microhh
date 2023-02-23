@@ -165,16 +165,20 @@ Canopy<TF>::Canopy(
         field3d_operators(masterin, gridin, fieldsin), field3d_io(masterin, gridin)
 {
     sw_canopy = inputin.get_item<bool>("canopy", "sw_canopy", "", false);
-    sw_3d_pad = inputin.get_item<bool>("canopy", "sw_3d_pad", "", false);
-    cd = inputin.get_item<TF>("canopy", "cd", "");
 
-    if (sw_3d_pad)
+    if (sw_canopy)
     {
-        #ifdef USECUDA
-        raise std::runtime_error("3D plant area density is not yet implemented on GPU.");
-        #endif
+        sw_3d_pad = inputin.get_item<bool>("canopy", "sw_3d_pad", "", false);
+        cd = inputin.get_item<TF>("canopy", "cd", "");
 
-        ktot_canopy = inputin.get_item<int>("canopy", "ktot_canopy", "");
+        if (sw_3d_pad)
+        {
+            #ifdef USECUDA
+            raise std::runtime_error("3D plant area density is not yet implemented on GPU.");
+            #endif
+
+            ktot_canopy = inputin.get_item<int>("canopy", "ktot_canopy", "");
+        }
     }
 }
 

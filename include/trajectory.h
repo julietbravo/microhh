@@ -31,6 +31,36 @@ template<typename> class Fields;
 template<typename> class Timeloop;
 template<typename> class Netcdf_variable;
 
+template <typename TF>
+struct Time_var
+{
+    Netcdf_variable<TF> ncvar;
+    TF data;
+};
+
+template <typename TF>
+struct Single_Trajectory
+{
+    std::vector<double> time_in;
+    std::vector<TF> x_in;
+    std::vector<TF> y_in;
+    std::vector<TF> z_in;
+
+    double start_time;
+    double end_time;
+
+    // NetCDF file
+    std::unique_ptr<Netcdf_file> data_file;
+
+    std::map<std::string, Time_var<TF>> time_series;
+
+    // NetCDF variables of time/location.
+    std::unique_ptr<Netcdf_variable<TF>> time_var;
+    std::unique_ptr<Netcdf_variable<TF>> x_var;
+    std::unique_ptr<Netcdf_variable<TF>> y_var;
+    std::unique_ptr<Netcdf_variable<TF>> z_var;
+};
+
 template<typename TF>
 class Trajectory
 {
@@ -49,34 +79,7 @@ class Trajectory
     private:
         // List with prognostic variables to sample.
         std::vector<std::string> variables;
-
-        // Input vectors with time and (x,y,z) location.
-        std::vector<double> time_in;
-        std::vector<TF> x_in;
-        std::vector<TF> y_in;
-        std::vector<TF> z_in;
-
-        // Current location of trajectory
-        TF x_loc;
-        TF y_loc;
-        TF z_loc;
-
-        // NetCDF file
-        std::unique_ptr<Netcdf_file> data_file;
-
-        struct Time_var
-        {
-            Netcdf_variable<TF> ncvar;
-            TF data;
-        };
-
-        std::map<std::string, Time_var> time_series;
-
-        // NetCDF variables of time/location.
-        std::unique_ptr<Netcdf_variable<TF>> time_var;
-        std::unique_ptr<Netcdf_variable<TF>> x_var;
-        std::unique_ptr<Netcdf_variable<TF>> y_var;
-        std::unique_ptr<Netcdf_variable<TF>> z_var;
+        std::vector<std::string> names;
 
     protected:
         Master& master;
@@ -84,6 +87,8 @@ class Trajectory
         Fields<TF>& fields;
 
         bool sw_trajectory;
+
+        std::map<std::string, Single_Trajectory<TF>> trajectories;
 
         int statistics_counter;
         double sampletime;

@@ -312,6 +312,8 @@ namespace Boundary_surface_kernels
         if (Ri > Ri_max)
             return zsl/Constants::zL_max<TF>;
 
+        int n;
+
         // Allow for one restart
         while (m <= 1)
         {
@@ -331,9 +333,9 @@ namespace Boundary_surface_kernels
             else
                 L0 = Constants::dhuge;
 
-            int n = 0;
 
             // Exit on convergence or on iteration count
+            n = 0;
             while (std::abs((L - L0)/L0) > TF(0.001) && n < nlim && std::abs(L) < Lmax)
             {
                 L0     = L;
@@ -364,7 +366,7 @@ namespace Boundary_surface_kernels
 
         if (m > 1)
         {
-            std::cout << "WARNING: Rib<->L iter failed: du=" << du << ", B0=" << bfluxbot << ", zsl=" << zsl << ", z0m=" << z0m << ", L=" << L << std::endl;
+            std::cout << "WARNING: Rib<->L iter failed: du=" << du << ", B0=" << bfluxbot << ", zsl=" << zsl << ", z0m=" << z0m << ", L=" << L << ", n=" << n << std::endl;
 
             if (std::abs(L) > Lmax)
                 L = -copysign(TF(1), bfluxbot) * Lmax;  // Non-converged in neutral regime; return Lmax with correct sign.
@@ -405,6 +407,8 @@ namespace Boundary_surface_kernels
         if (Ri > Ri_max)
             return zsl/Constants::zL_max<TF>;
 
+        int n;
+
         // Allow for one restart
         while (m <= 1)
         {
@@ -424,9 +428,8 @@ namespace Boundary_surface_kernels
             else
                 L0 = -Constants::dhuge;
 
-            int n = 0;
-
             // Exit on convergence or on iteration count
+            n = 0;
             while (std::abs((L - L0)/L0) > TF(0.001) && n < nlim && std::abs(L) < Lmax)
             {
                 L0     = L;
@@ -457,7 +460,7 @@ namespace Boundary_surface_kernels
 
         if (m > 1)
         {
-            std::cout << "WARNING: Rib<->L iter failed: du=" << du << ", db=" << db << ", zsl=" << zsl << ", z0m=" << z0m << ", z0h=" << z0h << ", L=" << L << std::endl;
+            std::cout << "WARNING: Rib<->L iter failed: du=" << du << ", db=" << db << ", zsl=" << zsl << ", z0m=" << z0m << ", z0h=" << z0h << ", L=" << L << ", n=" << n << std::endl;
 
             if (std::abs(L) > Lmax)
                 L = copysign(TF(1), db) * Lmax; // Non-converged in neutral regime; return Lmax with correct sign.

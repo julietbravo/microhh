@@ -305,12 +305,19 @@ namespace Boundary_surface_kernels
         else
             bfluxbot = std::min(-TF(Constants::dsmall), bfluxbot);
 
+        // Limit in stable conditions, identical to bounds LUT solver.
+        // This prevents a lot of the "iteration not converged" errors.
+        const TF Ri_max = Constants::zL_max<TF> * fm::pow3(most::fm(zsl, z0m, zsl/Constants::zL_max<TF>));
+        const TF Ri = -Constants::kappa<TF> * bfluxbot * zsl / fm::pow3(du);
+        if (Ri > Ri_max)
+            return zsl/Constants::zL_max<TF>;
+
         // Allow for one restart
         while (m <= 1)
         {
             // If L and bfluxbot are of the same sign, or the last calculation did not converge,
             // the stability has changed and the procedure needs to be reset
-            if (L*bfluxbot >= 0.)
+            if (m == 1 || L*bfluxbot >= TF(0))
             {
                 nlim = 200;
                 if (bfluxbot >= 0.)
@@ -327,16 +334,21 @@ namespace Boundary_surface_kernels
             int n = 0;
 
             // Exit on convergence or on iteration count
-            while (std::abs((L - L0)/L0) > 0.001 && n < nlim && std::abs(L) < Lmax)
+            while (std::abs((L - L0)/L0) > TF(0.001) && n < nlim && std::abs(L) < Lmax)
             {
                 L0     = L;
                 fx     = zsl/L + Constants::kappa<TF>*zsl*bfluxbot / fm::pow3(du * most::fm(zsl, z0m, L));
-                Lstart = L - 0.001*L;
-                Lend   = L + 0.001*L;
+                Lstart = L - TF(0.001)*L;
+                Lend   = L + TF(0.001)*L;
                 fxdif  = ( (zsl/Lend   + Constants::kappa<TF>*zsl*bfluxbot / fm::pow3(du * most::fm(zsl, z0m, Lend  )))
                          - (zsl/Lstart + Constants::kappa<TF>*zsl*bfluxbot / fm::pow3(du * most::fm(zsl, z0m, Lstart))) )
                        / (Lend - Lstart);
-                L      = L - fx/fxdif;
+
+                // Prevent div/0's.
+                if (std::abs(fxdif) < TF(1e-16))
+                    break;
+
+                L = L - fx/fxdif;
 
                 // Limit L for stable conditions (similar to the limits of the lookup table)
                 if (L >= TF(0) && L < L_min_stable)
@@ -345,24 +357,22 @@ namespace Boundary_surface_kernels
             }
 
             if (n < nlim && std::abs(L) < Lmax)
-                // Convergence has been reached
                 break;
             else
-            {
-                // Convergence has not been reached, procedure restarted once
-                if (bfluxbot >= 0.)
-                    L = -Constants::dsmall;
-                else
-                    L = L_min_stable;
-
                 ++m;
-                nlim = 200;
-            }
         }
 
         if (m > 1)
-            std::cout << "ERROR: convergence has not been reached in Obukhov length calculation" << std::endl;
+        {
+            std::cout << "WARNING: Rib<->L iter failed: du=" << du << ", B0=" << bfluxbot << ", zsl=" << zsl << ", z0m=" << z0m << ", L=" << L << std::endl;
 
+            if (std::abs(L) > Lmax)
+                L = -copysign(TF(1), bfluxbot) * Lmax;  // Non-converged in neutral regime; return Lmax with correct sign.
+            else
+                L = L_min_stable;  // Non-converged in stable regime.
+        }
+
+        // Limits same as LUT solver:
         return zsl/std::min(std::max(zsl/L, Constants::zL_min<TF>), Constants::zL_max<TF>);
     }
 
@@ -380,25 +390,27 @@ namespace Boundary_surface_kernels
 
         const TF L_min_stable = zsl / Constants::zL_max<TF>;
 
-        // The solver does not have a solution for large Ri numbers,
-        // i.e. the `fx` equation below has no zero crossing.
-        // The limit of 0.13 typically results in a minimum (positive) L of ~1
-        const TF Ri = Constants::kappa<TF> * db * zsl / fm::pow2(du);
-        if (Ri > TF(0.13))
-            return L_min_stable;
-
         // Avoid db to be zero
         if (db >= 0.)
             db = std::max(TF(Constants::dsmall), db);
         else
             db = std::min(-TF(Constants::dsmall), db);
 
+        // Limit in stable conditions, identical to bounds LUT solver.
+        // This prevents a lot of the "iteration not converged" errors.
+        const TF Ri_max = Constants::zL_max<TF>
+            * fm::pow2(most::fm(zsl, z0m, zsl/Constants::zL_max<TF>))
+            / most::fh(zsl, z0h, zsl/Constants::zL_max<TF>);
+        const TF Ri = Constants::kappa<TF> * db * zsl / fm::pow2(du);
+        if (Ri > Ri_max)
+            return zsl/Constants::zL_max<TF>;
+
         // Allow for one restart
         while (m <= 1)
         {
             // If L and db are of different sign, or the last calculation did not converge,
             // the stability has changed and the procedure needs to be reset
-            if (L*db <= 0.)
+            if (m == 1 || L*db <= TF(0))
             {
                 nlim = 200;
                 if(db >= 0.)
@@ -415,20 +427,21 @@ namespace Boundary_surface_kernels
             int n = 0;
 
             // Exit on convergence or on iteration count
-            while (std::abs((L - L0)/L0) > 0.001 && n < nlim && std::abs(L) < Lmax)
+            while (std::abs((L - L0)/L0) > TF(0.001) && n < nlim && std::abs(L) < Lmax)
             {
                 L0     = L;
                 fx     = zsl/L - Constants::kappa<TF>*zsl*db*most::fh(zsl, z0h, L) / fm::pow2(du * most::fm(zsl, z0m, L));
-                Lstart = L - 0.001*L;
-                Lend   = L + 0.001*L;
+                Lstart = L - TF(0.001)*L;
+                Lend   = L + TF(0.001)*L;
                 fxdif  = ( (zsl/Lend   - Constants::kappa<TF>*zsl*db*most::fh(zsl, z0h, Lend)   / fm::pow2(du * most::fm(zsl, z0m, Lend  )))
                          - (zsl/Lstart - Constants::kappa<TF>*zsl*db*most::fh(zsl, z0h, Lstart) / fm::pow2(du * most::fm(zsl, z0m, Lstart))) )
                        / (Lend - Lstart);
 
-                if (std::abs(fxdif) < TF(1e-20))
+                // Prevent div/0's.
+                if (std::abs(fxdif) < TF(1e-16))
                     break;
 
-                L      = L - fx/fxdif;
+                L = L - fx/fxdif;
 
                 if (L >= TF(0) && L < L_min_stable)
                     L = L_min_stable;
@@ -437,33 +450,23 @@ namespace Boundary_surface_kernels
             }
 
             if (n < nlim && std::abs(L) < Lmax)
-                // Convergence has been reached
                 break;
             else
-            {
-                // Convergence has not been reached, procedure restarted once
-                if (db >= TF(0))
-                    L = L_min_stable;
-                else
-                    L = -Constants::dsmall;
-
                 ++m;
-                nlim = 200;
-            }
         }
 
         if (m > 1)
         {
-            std::cout << "ERROR: no convergence obukhov iteration!" << std::endl;
-            std::cout << "INPUT: du=" << du << ", db=" << db << ", z0m=" << z0m << ", z0h=" << z0h << ", OUTPUT: L=" << L <<  std::endl;
+            std::cout << "WARNING: Rib<->L iter failed: du=" << du << ", db=" << db << ", zsl=" << zsl << ", z0m=" << z0m << ", z0h=" << z0h << ", L=" << L << std::endl;
+
+            if (std::abs(L) > Lmax)
+                L = copysign(TF(1), db) * Lmax; // Non-converged in neutral regime; return Lmax with correct sign.
+            else
+                L = L_min_stable; // Non-converged in stable regime.
         }
 
-        // Limit tails:
-        TF L_lim = zsl/std::min(std::max(zsl/L, Constants::zL_min<TF>), Constants::zL_max<TF>);
-        // Limit large values of L (~in line with LUT)
-        //L_lim = std::min(std::max(L_lim, TF(-1e6)), TF(1e6));
-
-        return L_lim;
+        // Limits same as LUT solver:
+        return zsl/std::min(std::max(zsl/L, Constants::zL_min<TF>), Constants::zL_max<TF>);
     }
 
     template<typename TF>

@@ -346,9 +346,13 @@ namespace Boundary_surface_kernels
                          - (zsl/Lstart + Constants::kappa<TF>*zsl*bfluxbot / fm::pow3(du * most::fm(zsl, z0m, Lstart))) )
                        / (Lend - Lstart);
 
-                // Prevent div/0's.
+                // Prevent div/0's. At this point, L will go beyond +/-Lmax,
+                // so set L to the max value with correct sign.
                 if (std::abs(fxdif) < TF(1e-16))
+                {
+                    L = -copysign(TF(1), bfluxbot) * Lmax;
                     break;
+                }
 
                 L = L - fx/fxdif;
 
@@ -440,9 +444,13 @@ namespace Boundary_surface_kernels
                          - (zsl/Lstart - Constants::kappa<TF>*zsl*db*most::fh(zsl, z0h, Lstart) / fm::pow2(du * most::fm(zsl, z0m, Lstart))) )
                        / (Lend - Lstart);
 
-                // Prevent div/0's.
+                // Prevent div/0's. At this point, L will go beyond +/-Lmax,
+                // so set L to the max value with correct sign.
                 if (std::abs(fxdif) < TF(1e-16))
+                {
+                    L = copysign(TF(1), db) * Lmax;
                     break;
+                }
 
                 L = L - fx/fxdif;
 

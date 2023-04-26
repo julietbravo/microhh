@@ -307,10 +307,11 @@ namespace Boundary_surface_kernels
 
         // Limit in stable conditions, identical to bounds LUT solver.
         // This prevents a lot of the "iteration not converged" errors.
-        const TF Ri_max = Constants::zL_max<TF> * fm::pow3(most::fm(zsl, z0m, zsl/Constants::zL_max<TF>));
-        const TF Ri = -Constants::kappa<TF> * bfluxbot * zsl / fm::pow3(du);
-        if (Ri > Ri_max)
-            return zsl/Constants::zL_max<TF>;
+        // NOTE: this limiter does not work for flux BCs, with its dual solution in the SBL.
+        //const TF Ri_max = Constants::zL_max<TF> * fm::pow3(most::fm(zsl, z0m, zsl/Constants::zL_max<TF>));
+        //const TF Ri = -Constants::kappa<TF> * bfluxbot * zsl / fm::pow3(du);
+        //if (Ri > Ri_max)
+        //    return zsl/Constants::zL_max<TF>;
 
         int n;
 

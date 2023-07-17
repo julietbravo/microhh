@@ -134,6 +134,7 @@ Model<TF>::Model(Master& masterin, int argc, char *argv[]) :
         limiter   = std::make_shared<Limiter<TF>>(master, *grid, *fields, *diff, *input);
         source    = std::make_shared<Source <TF>>(master, *grid, *fields, *input);
 
+        // SvdL, 21-05-2023: deze is waarschijnlijk goed, mits *diff wordt toegevoegd
         ib        = std::make_shared<Immersed_boundary<TF>>(master, *grid, *fields, *input);
 
         stats     = std::make_shared<Stats <TF>>(master, *grid, *soil_grid, *fields, *advec, *diff, *input);
@@ -181,7 +182,7 @@ void Model<TF>::init()
     fft->init();
 
     boundary->init(*input, *thermo);
-    ib->init(*input, *cross);
+    ib->init(*input, *cross); //SvdL, 20-05-2023: init fase moet blijven, cross meegeven ook?
     buffer->init();
     diff->init();
     pres->init();
@@ -246,7 +247,9 @@ void Model<TF>::load()
     boundary->create(*input, *input_nc, *stats, *column, *cross, *timeloop);
     boundary->set_values();
 
-    ib->create();
+    // SvdL, 18-05-2023: indien er met bepaalde snelheid geinitialiseerd wordt, is het dan ook nodig om op dat punt al de IB waardes te forceren? -> Nee, pas na eind van de standaard loop?
+    // misschien we de positie in de workflow aanpassen?
+    ib->create(*input, *input_nc); // waarschijnlijk ib->create(*input, *stats) nodig?
     buffer->create(*input, *input_nc, *stats);
     force->create(*input, *input_nc, *stats);
     source->create(*input, *input_nc);
@@ -261,6 +264,7 @@ void Model<TF>::load()
     decay->create(*input, *stats);
     limiter->create(*stats);
 
+    
     // Cross and dump both need to be called at/near the
     // end of the create phase, as other classes register which
     // variables are legal as a cross/dump.
@@ -347,6 +351,7 @@ void Model<TF>::exec()
 
                 // Get the viscosity to be used in diffusion.
                 diff->exec_viscosity(*stats, *thermo);
+                ib->exec_viscosity(); //<< Apply after diff->exec_viscosity() to correct viscosity at ib.
 
                 // Determine the time step.
                 set_time_step();
@@ -371,9 +376,11 @@ void Model<TF>::exec()
                 boundary->exec(*thermo, *radiation, *microphys, *timeloop);
                 boundary->set_ghost_cells();
 
-                // Set the immersed boundary conditions for scalars.
-                ib->exec_scalars();
+                // SvdL, 20-05-2023: apply all ib settings last...
+                // // Set the immersed boundary conditions for scalars.
+                // ib->exec_scalars();
 
+                // SvdL, 18-05-2023: NOTE Controleer wat dit precies doet..
                 // Update the outflow boundary conditions in case IB is used.
                 if (ib->get_switch() != IB_type::Disabled)
                     boundary->set_prognostic_outflow_bcs();
@@ -398,8 +405,8 @@ void Model<TF>::exec()
                 // Apply the large scale forcings. Keep this one always right before the pressure.
                 force->exec(timeloop->get_sub_time_step(), *thermo, *stats);
 
-                // Set the immersed boundary conditions
-                ib->exec_momentum();
+                // Apply the immersed boundary after all flow tendencies are known, based on auxiliary velocity
+                ib->exec(timeloop->get_sub_time_step());
 
                 // Solve the poisson equation for pressure.
                 boundary->set_ghost_cells_w(Boundary_w_type::Conservation_type);

@@ -384,13 +384,6 @@ void Boundary<TF>::set_ghost_cells_w(const Boundary_w_type boundary_w_type)
 #endif
 
 template<typename TF>
-void Boundary<TF>::clear_device()
-{
-    for(auto& it : tdep_bc)
-        it.second->clear_device();
-}
-
-template<typename TF>
 void Boundary<TF>::set_bc_g(TF* restrict a, TF* restrict agrad, TF* restrict aflux,
                         Boundary_type sw, TF aval, TF visc, TF offset)
 {
@@ -502,6 +495,14 @@ void Boundary<TF>::prepare_device()
         cuda_safe_call(cudaMemcpy(inflow_profiles_g.at(scalar), inflow_profiles.at(scalar).data(), memsize, cudaMemcpyHostToDevice));
     }
 }
+
+template<typename TF>
+void Boundary<TF>::clear_device()
+{
+    for(auto& it : tdep_bc)
+        it.second->clear_device();
+}
+
 
 template<typename TF>
 void Boundary<TF>::forward_device()

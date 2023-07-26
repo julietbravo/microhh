@@ -55,6 +55,8 @@
 #include "dump.h"
 #include "model.h"
 #include "source.h"
+#include "trajectory.h"
+#include "canopy.h"
 
 #ifdef USECUDA
 #include <cuda_runtime_api.h>
@@ -129,19 +131,21 @@ Model<TF>::Model(Master& masterin, int argc, char *argv[]) :
         microphys = Microphys<TF>::factory(master, *grid, *fields, *input);
         radiation = Radiation<TF>::factory(master, *grid, *fields, *input);
 
-        force     = std::make_shared<Force  <TF>>(master, *grid, *fields, *input);
-        buffer    = std::make_shared<Buffer <TF>>(master, *grid, *fields, *input);
-        decay     = std::make_shared<Decay  <TF>>(master, *grid, *fields, *input);
-        limiter   = std::make_shared<Limiter<TF>>(master, *grid, *fields, *input);
-        source    = std::make_shared<Source <TF>> (master, *grid, *fields, *input);
+        force     = std::make_shared<Force    <TF>>(master, *grid, *fields, *input);
+        buffer    = std::make_shared<Buffer   <TF>>(master, *grid, *fields, *input);
+        decay     = std::make_shared<Decay    <TF>>(master, *grid, *fields, *input);
+        limiter   = std::make_shared<Limiter  <TF>>(master, *grid, *fields, *input);
+        source    = std::make_shared<Source   <TF>>(master, *grid, *fields, *input);
         chemistry = std::make_shared<Chemistry<TF>>(master, *grid, *fields, *input);
+        canopy    = std::make_shared<Canopy   <TF>>(master, *grid, *fields, *input);
 
         ib        = std::make_shared<Immersed_boundary<TF>>(master, *grid, *fields, *input);
 
-        stats     = std::make_shared<Stats <TF>>(master, *grid, *soil_grid, *fields, *advec, *diff, *input);
-        column    = std::make_shared<Column<TF>>(master, *grid, *fields, *input);
-        dump      = std::make_shared<Dump  <TF>>(master, *grid, *fields, *input);
-        cross     = std::make_shared<Cross <TF>>(master, *grid, *soil_grid, *fields, *input);
+        stats      = std::make_shared<Stats     <TF>>(master, *grid, *soil_grid, *fields, *advec, *diff, *input);
+        column     = std::make_shared<Column    <TF>>(master, *grid, *fields, *input);
+        dump       = std::make_shared<Dump      <TF>>(master, *grid, *fields, *input);
+        cross      = std::make_shared<Cross     <TF>>(master, *grid, *soil_grid, *fields, *input);
+        trajectory = std::make_shared<Trajectory<TF>>(master, *grid, *fields, *input);
 
         budget    = Budget<TF>::factory(master, *grid, *fields, *thermo, *diff, *advec, *force, *stats, *input);
 
@@ -194,11 +198,13 @@ void Model<TF>::init()
     chemistry-> init(*input);
     budget->init();
     source->init();
+    canopy->init();
 
     stats->init(timeloop->get_ifactor());
     column->init(timeloop->get_ifactor());
     cross->init(timeloop->get_ifactor());
     dump->init(timeloop->get_ifactor());
+    trajectory->init(timeloop->get_ifactor());
 }
 
 template<typename TF>
@@ -237,6 +243,7 @@ void Model<TF>::load()
     // Initialize the statistics file to open the possiblity to add profiles in other routines
     stats->create(*timeloop, sim_name);
     column->create(*input, *timeloop, sim_name);
+    trajectory->create(*input, *input_nc, *timeloop, sim_name);
 
     // Load the fields, and create the field statistics
     fields->load(timeloop->get_iotime());
@@ -254,6 +261,7 @@ void Model<TF>::load()
     buffer->create(*input, *input_nc, *stats);
     force->create(*input, *input_nc, *stats);
     source->create(*input, *input_nc);
+    canopy->create(*input, *input_nc, *stats);
 
     microphys->create(*input, *input_nc, *stats, *cross, *dump, *column);
 
@@ -326,6 +334,7 @@ void Model<TF>::exec()
         #endif
     #endif
 
+
     #pragma omp parallel num_threads(nthreads_out)
     {
         #pragma omp master
@@ -340,13 +349,13 @@ void Model<TF>::exec()
                 radiation->update_time_dependent(*timeloop);
                 chemistry->update_time_dependent(*timeloop, *boundary);
 
+                // Calculate the field means, in case needed.
+                fields->exec();
+
                 // Set the cyclic BCs of the prognostic 3D fields.
                 boundary->set_prognostic_cyclic_bcs();
                 boundary->set_prognostic_outflow_bcs();
                 boundary->set_ghost_cells();
-
-                // Calculate the field means, in case needed.
-                fields->exec();
 
                 // Get the viscosity to be used in diffusion.
                 diff->exec_viscosity(*thermo);
@@ -399,6 +408,9 @@ void Model<TF>::exec()
                 source->exec(*timeloop);
                 chemistry->exec(*thermo, timeloop->get_sub_time_step(), timeloop->get_dt());
 
+                // Canopy drag.
+                canopy->exec();
+
                 // Apply the large scale forcings. Keep this one always right before the pressure.
                 force->exec(timeloop->get_sub_time_step(), *thermo, *stats);
 
@@ -438,7 +450,7 @@ void Model<TF>::exec()
                         radiation->exec_individual_column_stats(*column, *thermo, *timeloop, *stats);
                     }
 
-                    if (stats->do_statistics(itime) || cross->do_cross(itime) || dump->do_dump(itime))
+                    if (stats->do_statistics(itime) || cross->do_cross(itime) || dump->do_dump(itime) || trajectory->do_trajectory(itime))
                     {
                         #ifdef USECUDA
                         #pragma omp taskwait
@@ -573,6 +585,7 @@ void Model<TF>::prepare_gpu()
     microphys->prepare_device();
     radiation->prepare_device();
     column   ->prepare_device();
+    canopy   ->prepare_device();
     // Prepare pressure last, for memory check
     pres     ->prepare_device();
 }
@@ -592,6 +605,7 @@ void Model<TF>::clear_gpu()
     microphys->clear_device();
     radiation->clear_device();
     column   ->clear_device();
+    canopy   ->clear_device();
     // Clear pressure last, for memory check
     pres     ->clear_device();
 }
@@ -635,6 +649,10 @@ void Model<TF>::calculate_statistics(int iteration, double time, unsigned long i
         thermo   ->exec_dump(*dump, iotime);
         microphys->exec_dump(*dump, iotime);
     }
+
+    // Save the trajectories.
+    if (trajectory->do_trajectory(itime))
+        trajectory->exec(*timeloop, time, itime);
 
     if (stats->do_statistics(itime))
     {
@@ -736,15 +754,16 @@ void Model<TF>::set_time_step()
 
     // Retrieve the maximum allowed time step per class.
     timeloop->set_time_step_limit();
-    timeloop->set_time_step_limit(advec    ->get_time_limit(timeloop->get_idt(), timeloop->get_dt()));
-    timeloop->set_time_step_limit(diff     ->get_time_limit(timeloop->get_idt(), timeloop->get_dt()));
-    timeloop->set_time_step_limit(thermo   ->get_time_limit(timeloop->get_idt(), timeloop->get_dt()));
-    timeloop->set_time_step_limit(microphys->get_time_limit(timeloop->get_idt(), timeloop->get_dt()));
-    timeloop->set_time_step_limit(radiation->get_time_limit(timeloop->get_itime()));
-    timeloop->set_time_step_limit(stats    ->get_time_limit(timeloop->get_itime()));
-    timeloop->set_time_step_limit(cross    ->get_time_limit(timeloop->get_itime()));
-    timeloop->set_time_step_limit(dump     ->get_time_limit(timeloop->get_itime()));
-    timeloop->set_time_step_limit(column   ->get_time_limit(timeloop->get_itime()));
+    timeloop->set_time_step_limit(advec     ->get_time_limit(timeloop->get_idt(), timeloop->get_dt()));
+    timeloop->set_time_step_limit(diff      ->get_time_limit(timeloop->get_idt(), timeloop->get_dt()));
+    timeloop->set_time_step_limit(thermo    ->get_time_limit(timeloop->get_idt(), timeloop->get_dt()));
+    timeloop->set_time_step_limit(microphys ->get_time_limit(timeloop->get_idt(), timeloop->get_dt()));
+    timeloop->set_time_step_limit(radiation ->get_time_limit(timeloop->get_itime()));
+    timeloop->set_time_step_limit(stats     ->get_time_limit(timeloop->get_itime()));
+    timeloop->set_time_step_limit(cross     ->get_time_limit(timeloop->get_itime()));
+    timeloop->set_time_step_limit(dump      ->get_time_limit(timeloop->get_itime()));
+    timeloop->set_time_step_limit(column    ->get_time_limit(timeloop->get_itime()));
+    timeloop->set_time_step_limit(trajectory->get_time_limit(timeloop->get_itime()));
 
     // Set the time step.
     timeloop->set_time_step();

@@ -57,6 +57,7 @@ class Source
         std::vector<Shape> shape;
 
         bool swsource;
+        bool sw_input_nc;
         std::vector<bool> sw_vmr;
 
         TF x0;

@@ -548,6 +548,7 @@ void Boundary_surface<TF>::init_surface(Input& input, Thermo<TF>& thermo)
 
     dudz_mo.resize(gd.ijcells);
     dvdz_mo.resize(gd.ijcells);
+
     if (thermo.get_switch() != "0")
         dbdz_mo.resize(gd.ijcells);
 

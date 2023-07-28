@@ -45,12 +45,13 @@ template<typename TF>
 Trajectory<TF>::Trajectory(Master& masterin, Grid<TF>& gridin, Fields<TF>& fieldsin, Input& inputin) :
     master(masterin), grid(gridin), fields(fieldsin)
 {
-    sw_trajectory = inputin.get_item<bool>("trajectory", "swtrajectory", "", false);
+    names = inputin.get_list<std::string>("trajectory", "trajectories", "");
+    sw_trajectory = names.size() > 0;
 
     if (sw_trajectory)
     {
-        sampletime = inputin.get_item<double>("trajectory", "sampletime", "");
         variables = inputin.get_list<std::string>("trajectory", "variables", "");
+        sampletime = inputin.get_item<double>("trajectory", "sampletime", "");
     }
 }
 
@@ -78,73 +79,82 @@ void Trajectory<TF>::create(
     if (!sw_trajectory)
         return;
 
-    // Get time and location from input NetCDF file.
-    Netcdf_group& group_nc = input_nc.get_group("trajectory");
-    int n_traj = group_nc.get_dimension_size("itraj");
-
-    time_in.resize(n_traj);
-    x_in.resize(n_traj);
-    y_in.resize(n_traj);
-    z_in.resize(n_traj);
-
-    group_nc.get_variable(time_in, "time", {0}, {n_traj});
-    group_nc.get_variable(x_in, "x", {0}, {n_traj});
-    group_nc.get_variable(y_in, "y", {0}, {n_traj});
-    group_nc.get_variable(z_in, "z", {0}, {n_traj});
-
-    // Create a NetCDF file for the statistics.
-    std::stringstream filename;
-    filename << sim_name << "." << "trajectory" << "."
-             << std::setfill('0') << std::setw(7) << timeloop.get_iotime() << ".nc";
-
-    // Create new NetCDF file.
-    data_file = std::make_unique<Netcdf_file>(master, filename.str(), Netcdf_mode::Create);
-    data_file->add_dimension("time");
-
-    // Create dimensions and variables.
-    time_var = std::make_unique<Netcdf_variable<TF>>(
-                data_file->template add_variable<TF>("time", {"time"}));
-    if (timeloop.has_utc_time())
-        time_var->add_attribute("units", "seconds since " + timeloop.get_datetime_utc_start_string());
-    else
-        time_var->add_attribute("units", "seconds since start");
-    time_var->add_attribute("long_name", "Time");
-
-    x_var = std::make_unique<Netcdf_variable<TF>>(
-                data_file->template add_variable<TF>("x", {"time"}));
-    x_var->add_attribute("units", "m");
-    x_var->add_attribute("long_name", "X location trajectory");
-
-    y_var = std::make_unique<Netcdf_variable<TF>>(
-                data_file->template add_variable<TF>("y", {"time"}));
-    y_var->add_attribute("units", "m");
-    y_var->add_attribute("long_name", "Y location trajectory");
-
-    z_var = std::make_unique<Netcdf_variable<TF>>(
-                data_file->template add_variable<TF>("z", {"time"}));
-    z_var->add_attribute("units", "m");
-    z_var->add_attribute("long_name", "Z location trajectory");
-
-    for (auto& name : variables)
+    for (auto& name : names)
     {
-        // Check if requested field is prognostic. If not, raise exception.
-        if (!fields.ap.count(name))
+        // Get time and location from input NetCDF file.
+        Netcdf_group& group_nc = input_nc.get_group("trajectory_" + name);
+        const int n_traj = group_nc.get_dimension_size("itraj");
+
+        // Create new trajectory instance, and add to map.
+        trajectories.emplace(name, Single_trajectory<TF>{});
+
+        // Short-cut to trajectory.
+        Single_trajectory<TF>& traj = trajectories.at(name);
+
+        // Retrieve input coordinates (time/space) from `case_input.nc`.
+        traj.time_in.resize(n_traj);
+        traj.x_in.resize(n_traj);
+        traj.y_in.resize(n_traj);
+        traj.z_in.resize(n_traj);
+
+        group_nc.get_variable(traj.time_in, "time", {0}, {n_traj});
+        group_nc.get_variable(traj.x_in, "x", {0}, {n_traj});
+        group_nc.get_variable(traj.y_in, "y", {0}, {n_traj});
+        group_nc.get_variable(traj.z_in, "z", {0}, {n_traj});
+
+        // Create a NetCDF file for the statistics.
+        std::stringstream filename;
+        filename << sim_name << "." << "trajectory" << "." << name << "."
+                 << std::setfill('0') << std::setw(7) << timeloop.get_iotime() << ".nc";
+
+        // Create new NetCDF file.
+        traj.data_file = std::make_unique<Netcdf_file>(master, filename.str(), Netcdf_mode::Create);
+        traj.data_file->add_dimension("time");
+
+        // Create dimensions and variables.
+        traj.time_var = std::make_unique<Netcdf_variable<TF>>(
+                    traj.data_file->template add_variable<TF>("time", {"time"}));
+        if (timeloop.has_utc_time())
+            traj.time_var->add_attribute("units", "seconds since " + timeloop.get_datetime_utc_start_string());
+        else
+            traj.time_var->add_attribute("units", "seconds since start");
+        traj.time_var->add_attribute("long_name", "Time");
+
+        traj.x_var = std::make_unique<Netcdf_variable<TF>>(
+                    traj.data_file->template add_variable<TF>("x", {"time"}));
+        traj.x_var->add_attribute("units", "m");
+        traj.x_var->add_attribute("long_name", "X location trajectory");
+
+        traj.y_var = std::make_unique<Netcdf_variable<TF>>(
+                    traj.data_file->template add_variable<TF>("y", {"time"}));
+        traj.y_var->add_attribute("units", "m");
+        traj.y_var->add_attribute("long_name", "Y location trajectory");
+
+        traj.z_var = std::make_unique<Netcdf_variable<TF>>(
+                    traj.data_file->template add_variable<TF>("z", {"time"}));
+        traj.z_var->add_attribute("units", "m");
+        traj.z_var->add_attribute("long_name", "Z location trajectory");
+
+        for (auto& name : variables)
         {
-            std::string error = "Trajectory variable \"" + name + "\" is not a prognostic field.";
-            throw std::runtime_error(error);
+            // Check if requested field is prognostic or diagnostic. If not, raise exception.
+            if (!fields.a.count(name))
+            {
+                std::string error = "Trajectory variable \"" + name + "\" is not a prognostic/diagnostic field.";
+                throw std::runtime_error(error);
+            }
+
+            Time_var<TF> var{traj.data_file->template add_variable<TF>(name, {"time"}), TF(0)};
+            var.ncvar.add_attribute("units", fields.a.at(name)->unit);
+            var.ncvar.add_attribute("long_name", fields.a.at(name)->longname);
+            //var.ncvar.add_attribute("_FillValue", netcdf_fp_fillvalue<TF>());  // ?!??!!?
+
+            traj.time_series.emplace(
+                    std::piecewise_construct, std::forward_as_tuple(name), std::forward_as_tuple(std::move(var)));
         }
 
-        Time_var var{data_file->template add_variable<TF>(name, {"time"}), TF(0)};
-        var.ncvar.add_attribute("units", fields.ap.at(name)->unit);
-        var.ncvar.add_attribute("long_name", fields.ap.at(name)->longname);
-
-        time_series.emplace(
-                std::piecewise_construct, std::forward_as_tuple(name), std::forward_as_tuple(std::move(var)));
-
-        data_file->sync();
+        traj.data_file->sync();
     }
-
-    data_file->sync();
 }
 
 template<typename TF>
@@ -180,149 +190,160 @@ void Trajectory<TF>::exec(Timeloop<TF>& timeloop, double time, unsigned long iti
     auto& gd=grid.get_grid_data();
     auto& md=master.get_MPI_data();
 
-    bool do_trajectory = true;
-
-    // 0.9 Check on time bounds. Trajectory can start/end during the simulation.
-    if (time < time_in[0] || time > time_in[time_in.size()-1])
-        do_trajectory = false;
-
-    if (do_trajectory)
+    for (auto& name : names)
     {
-        // 1. Get (x,y,z) location by interpolation of the input coordinates in time.
-        Interpolation_factors<TF> ifac = timeloop.get_interpolation_factors(time_in);
+        // Short-cut to trajectory.
+        Single_trajectory<TF>& traj = trajectories.at(name);
 
-        x_loc = ifac.fac0 * x_in[ifac.index0] + ifac.fac1 * x_in[ifac.index1];
-        y_loc = ifac.fac0 * y_in[ifac.index0] + ifac.fac1 * y_in[ifac.index1];
-        z_loc = ifac.fac0 * z_in[ifac.index0] + ifac.fac1 * z_in[ifac.index1];
+        bool do_trajectory = true;
 
-        // Bounds check on domain. NOTE: keep the `>=xsize` instead of `>xsize`...
-        if (x_loc < 0 || x_loc >= gd.xsize ||
-            y_loc < 0 || y_loc >= gd.ysize ||
-            z_loc < 0 || z_loc >= gd.zsize)
+        // 1. Check on time bounds. Trajectory is allowed to start/end during the simulation.
+        if (time < traj.time_in[0] || time > traj.time_in[traj.time_in.size()-1])
             do_trajectory = false;
-    }
 
-    if (do_trajectory)
-    {
-        // 2. Get indexes and interpolation factors for full and half levels.
-        auto get_index_fac = [&](const std::vector<TF>& x_vec, const TF x_val, const int size)
+        if (do_trajectory)
         {
-            // 1. Get index in `x_vec` left of `x_val`.
-            int n0;
-            for (int n=0; n<size; ++n)
+            // 2. Get (x,y,z) location by interpolation of the input coordinates in time.
+            Interpolation_factors<TF> ifac = timeloop.get_interpolation_factors(traj.time_in);
+
+            traj.x_loc = ifac.fac0 * traj.x_in[ifac.index0] + ifac.fac1 * traj.x_in[ifac.index1];
+            traj.y_loc = ifac.fac0 * traj.y_in[ifac.index0] + ifac.fac1 * traj.y_in[ifac.index1];
+            traj.z_loc = ifac.fac0 * traj.z_in[ifac.index0] + ifac.fac1 * traj.z_in[ifac.index1];
+
+            // Bounds check on domain. NOTE: keep the `>=xsize` instead of `>xsize`...
+            if (traj.x_loc < 0 || traj.x_loc >= gd.xsize ||
+                traj.y_loc < 0 || traj.y_loc >= gd.ysize ||
+                traj.z_loc < 0 || traj.z_loc >= gd.zsize)
+                do_trajectory = false;
+        }
+
+        if (do_trajectory)
+        {
+            // 2. Get indexes and interpolation factors for full and half levels.
+            auto get_index_fac=[&](const std::vector<TF>& x_vec, const TF x_val, const int size)
             {
-                if (x_vec[n] <= x_val && x_vec[n+1] > x_val)
+                // 1. Get index in `x_vec` left of `x_val`.
+                int n0;
+                for (int n=0; n<size; ++n)
                 {
-                    n0 = n;
-                    break;
+                    if (x_vec[n]<=x_val && x_vec[n + 1]>x_val)
+                    {
+                        n0=n;
+                        break;
+                    }
                 }
-            }
 
-            // 2. Calculate interpolation factor.
-            const TF fac = TF(1) - (x_val - x_vec[n0]) / (x_vec[n0+1] - x_vec[n0]);
+                // 2. Calculate interpolation factor.
+                const TF fac=TF(1) - (x_val - x_vec[n0]) / (x_vec[n0 + 1] - x_vec[n0]);
 
-            return std::pair(n0, fac);
-        };
-
-        // Calculate `mpiid` which contains the current trajectory location.
-        // All MPI tasks need to know this ID for the `broadcast` below.
-        const TF sub_xsize = gd.imax * gd.dx;
-        const TF sub_ysize = gd.jmax * gd.dy;
-
-        const int mpicoordx = x_loc / sub_xsize;
-        const int mpicoordy = y_loc / sub_ysize;
-
-        const int mpiid_of_traj = master.calc_mpiid(mpicoordx, mpicoordy);
-
-        if (md.mpiid == mpiid_of_traj)
-        {
-            std::pair<int, TF> ipx  = get_index_fac(gd.x,  x_loc, gd.icells);
-            std::pair<int, TF> ipxh = get_index_fac(gd.xh, x_loc, gd.icells);
-
-            std::pair<int, TF> jpx  = get_index_fac(gd.y,  y_loc, gd.jcells);
-            std::pair<int, TF> jpxh = get_index_fac(gd.yh, y_loc, gd.jcells);
-
-            std::pair<int, TF> kpx  = get_index_fac(gd.z,  z_loc, gd.kcells);
-            std::pair<int, TF> kpxh = get_index_fac(gd.zh, z_loc, gd.kcells);
-
-            // Put in vector for easier access with `field3d->loc`.
-            std::vector<std::pair<int, TF>> ix = {ipx, ipxh};
-            std::vector<std::pair<int, TF>> iy = {jpx, jpxh};
-            std::vector<std::pair<int, TF>> iz = {kpx, kpxh};
-
-            // Interpolate variables.
-            auto ijk = [&](const int i, const int j, const int k)
-            {
-                return i + j*gd.icells + k*gd.ijcells;
+                return std::pair(n0, fac);
             };
 
-            auto interpolate = [&](
-                    const std::vector<TF>& fld,
-                    std::pair<int, TF> fx,
-                    std::pair<int, TF> fy,
-                    std::pair<int, TF> fz)
+            // Calculate `mpiid` which contains the current trajectory location.
+            // All MPI tasks need to know this ID for the `broadcast` below.
+            const TF sub_xsize=gd.imax * gd.dx;
+            const TF sub_ysize=gd.jmax * gd.dy;
+
+            const int mpicoordx=traj.x_loc / sub_xsize;
+            const int mpicoordy=traj.y_loc / sub_ysize;
+
+            const int mpiid_of_traj=master.calc_mpiid(mpicoordx, mpicoordy);
+
+            if (md.mpiid == mpiid_of_traj)
             {
-                // Short-cuts.
-                const int i0 = fx.first;
-                const int j0 = fy.first;
-                const int k0 = fz.first;
+                std::pair<int, TF> ipx=get_index_fac(gd.x, traj.x_loc, gd.icells);
+                std::pair<int, TF> ipxh=get_index_fac(gd.xh, traj.x_loc, gd.icells);
 
-                const TF fx0 = fx.second;
-                const TF fx1 = TF(1) - fx.second;
-                const TF fy0 = fy.second;
-                const TF fy1 = TF(1) - fy.second;
-                const TF fz0 = fz.second;
-                const TF fz1 = TF(1) - fz.second;
+                std::pair<int, TF> jpx=get_index_fac(gd.y, traj.y_loc, gd.jcells);
+                std::pair<int, TF> jpxh=get_index_fac(gd.yh, traj.y_loc, gd.jcells);
 
-                // Tri-linear interpolation onto requested location.
-                const TF value =
-                    fx0 * fy0 * fz0 * fld[ijk(i0,   j0,   k0  )] +
-                    fx1 * fy0 * fz0 * fld[ijk(i0+1, j0,   k0  )] +
-                    fx0 * fy1 * fz0 * fld[ijk(i0,   j0+1, k0  )] +
-                    fx1 * fy1 * fz0 * fld[ijk(i0+1, j0+1, k0  )] +
-                    fx0 * fy0 * fz1 * fld[ijk(i0,   j0,   k0+1)] +
-                    fx1 * fy0 * fz1 * fld[ijk(i0+1, j0,   k0+1)] +
-                    fx0 * fy1 * fz1 * fld[ijk(i0,   j0+1, k0+1)] +
-                    fx1 * fy1 * fz1 * fld[ijk(i0+1, j0+1, k0+1)];
+                std::pair<int, TF> kpx=get_index_fac(gd.z, traj.z_loc, gd.kcells);
+                std::pair<int, TF> kpxh=get_index_fac(gd.zh, traj.z_loc, gd.kcells);
 
-                return value;
-            };
+                // Put in vector for easier access with `field3d->loc`.
+                std::vector<std::pair<int, TF>> ix={ipx, ipxh};
+                std::vector<std::pair<int, TF>> iy={jpx, jpxh};
+                std::vector<std::pair<int, TF>> iz={kpx, kpxh};
 
-            for (auto& name : variables)
-            {
-                const int loc_i = fields.ap.at(name)->loc[0];
-                const int loc_j = fields.ap.at(name)->loc[1];
-                const int loc_k = fields.ap.at(name)->loc[2];
+                // Interpolate variables.
+                auto ijk=[&](const int i, const int j, const int k)
+                {
+                    return i + j * gd.icells + k * gd.ijcells;
+                };
 
-                time_series.at(name).data = interpolate(
-                        fields.ap.at(name)->fld, ix[loc_i], iy[loc_j], iz[loc_k]);
+                auto interpolate=[&](
+                        const std::vector<TF>& fld,
+                        std::pair<int, TF> fx,
+                        std::pair<int, TF> fy,
+                        std::pair<int, TF> fz)
+                {
+                    // Short-cuts.
+                    const int i0=fx.first;
+                    const int j0=fy.first;
+                    const int k0=fz.first;
+
+                    const TF fx0=fx.second;
+                    const TF fx1=TF(1) - fx.second;
+                    const TF fy0=fy.second;
+                    const TF fy1=TF(1) - fy.second;
+                    const TF fz0=fz.second;
+                    const TF fz1=TF(1) - fz.second;
+
+                    // Tri-linear interpolation onto requested location.
+                    const TF value=
+                            fx0 * fy0 * fz0 * fld[ijk(i0, j0, k0)] +
+                            fx1 * fy0 * fz0 * fld[ijk(i0 + 1, j0, k0)] +
+                            fx0 * fy1 * fz0 * fld[ijk(i0, j0 + 1, k0)] +
+                            fx1 * fy1 * fz0 * fld[ijk(i0 + 1, j0 + 1, k0)] +
+                            fx0 * fy0 * fz1 * fld[ijk(i0, j0, k0 + 1)] +
+                            fx1 * fy0 * fz1 * fld[ijk(i0 + 1, j0, k0 + 1)] +
+                            fx0 * fy1 * fz1 * fld[ijk(i0, j0 + 1, k0 + 1)] +
+                            fx1 * fy1 * fz1 * fld[ijk(i0 + 1, j0 + 1, k0 + 1)];
+
+                    return value;
+                };
+
+                for (auto& name: variables)
+                {
+                    const int loc_i=fields.a.at(name)->loc[0];
+                    const int loc_j=fields.a.at(name)->loc[1];
+                    const int loc_k=fields.a.at(name)->loc[2];
+
+                    traj.time_series.at(name).data=interpolate(
+                            fields.a.at(name)->fld, ix[loc_i], iy[loc_j], iz[loc_k]);
+                }
+
+                // This is a bit wasteful (?), a specific send/recv should be enough,
+                // but we are only sending one float/double per variable....
+                for (auto& name : variables)
+                    master.broadcast(&traj.time_series.at(name).data, 1, mpiid_of_traj);
             }
         }
         else
         {
-            for (auto& name : variables)
-                time_series.at(name).data = netcdf_fp_fillvalue<TF>();
-        }
+            // Trajectory is out of bounds in time or space (domain).
+            for (auto& name: variables)
+                traj.time_series.at(name).data = netcdf_fp_fillvalue<TF>();
 
-        // This is a bit wasteful (?), a specific send/recv should be enough,
-        // but we are only sending one float/double per variable....
-        for (auto& name : variables)
-            master.broadcast(&time_series.at(name).data, 1, mpiid_of_traj);
+            traj.x_loc = netcdf_fp_fillvalue<TF>();
+            traj.y_loc = netcdf_fp_fillvalue<TF>();
+            traj.z_loc = netcdf_fp_fillvalue<TF>();
+        }
 
         // Store value in NetCDF file.
         const std::vector<int> time_index{statistics_counter};
 
-        time_var->insert(time, time_index);
-        x_var->insert(x_loc, time_index);
-        y_var->insert(y_loc, time_index);
-        z_var->insert(z_loc, time_index);
+        traj.time_var->insert(time, time_index);
+        traj.x_var->insert(traj.x_loc, time_index);
+        traj.y_var->insert(traj.y_loc, time_index);
+        traj.z_var->insert(traj.z_loc, time_index);
 
         for (auto& name : variables)
-            time_series.at(name).ncvar.insert(time_series.at(name).data, time_index);
-    }
+            traj.time_series.at(name).ncvar.insert(traj.time_series.at(name).data, time_index);
 
-    // Synchronize the NetCDF file
-    data_file->sync();
+        // Synchronize the NetCDF file
+        traj.data_file->sync();
+    }
 
     ++statistics_counter;
 }

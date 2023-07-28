@@ -22,6 +22,8 @@
 
 #include <cstdio>
 #include <cmath>
+#include <stdexcept>
+
 #include "master.h"
 #include "grid.h"
 #include "fields.h"

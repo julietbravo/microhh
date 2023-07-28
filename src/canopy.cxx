@@ -22,6 +22,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include  <stdexcept>
 
 #include "canopy.h"
 #include "input.h"

@@ -32,6 +32,46 @@ template<typename> class Timeloop;
 template<typename> class Netcdf_variable;
 
 template<typename TF>
+struct Time_var
+{
+    Netcdf_variable<TF> ncvar;
+    TF data;
+};
+
+template<typename TF>
+struct Single_trajectory
+{
+    std::string name;    // Descriptive name of tile
+
+    // Input vectors with time and (x,y,z) location.
+    std::vector<double> time_in;
+    std::vector<TF> x_in;
+    std::vector<TF> y_in;
+    std::vector<TF> z_in;
+
+    // Current location of trajectory.
+    TF x_loc;
+    TF y_loc;
+    TF z_loc;
+
+    // NetCDF file.
+    std::unique_ptr<Netcdf_file> data_file;
+
+    // Individual time series of sampled statistics.
+    std::map<std::string, Time_var<TF>> time_series;
+
+    // NetCDF variables of time/location.
+    std::unique_ptr<Netcdf_variable<TF>> time_var;
+    std::unique_ptr<Netcdf_variable<TF>> x_var;
+    std::unique_ptr<Netcdf_variable<TF>> y_var;
+    std::unique_ptr<Netcdf_variable<TF>> z_var;
+};
+
+template<typename TF>
+using Trajectory_map = std::map<std::string, Single_trajectory<TF>>;
+
+
+template<typename TF>
 class Trajectory
 {
     public:
@@ -47,36 +87,11 @@ class Trajectory
         void exec(Timeloop<TF>&, double, unsigned long);
 
     private:
-        // List with prognostic variables to sample.
-        std::vector<std::string> variables;
+        std::vector<std::string> names;     // Individual trajectories.
+        std::vector<std::string> variables; // Names of prognostic/diagnostic variables to sample.
 
-        // Input vectors with time and (x,y,z) location.
-        std::vector<double> time_in;
-        std::vector<TF> x_in;
-        std::vector<TF> y_in;
-        std::vector<TF> z_in;
+        Trajectory_map<TF> trajectories;
 
-        // Current location of trajectory
-        TF x_loc;
-        TF y_loc;
-        TF z_loc;
-
-        // NetCDF file
-        std::unique_ptr<Netcdf_file> data_file;
-
-        struct Time_var
-        {
-            Netcdf_variable<TF> ncvar;
-            TF data;
-        };
-
-        std::map<std::string, Time_var> time_series;
-
-        // NetCDF variables of time/location.
-        std::unique_ptr<Netcdf_variable<TF>> time_var;
-        std::unique_ptr<Netcdf_variable<TF>> x_var;
-        std::unique_ptr<Netcdf_variable<TF>> y_var;
-        std::unique_ptr<Netcdf_variable<TF>> z_var;
 
     protected:
         Master& master;

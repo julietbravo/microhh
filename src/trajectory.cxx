@@ -45,7 +45,7 @@ template<typename TF>
 Trajectory<TF>::Trajectory(Master& masterin, Grid<TF>& gridin, Fields<TF>& fieldsin, Input& inputin) :
     master(masterin), grid(gridin), fields(fieldsin)
 {
-    names = inputin.get_list<std::string>("trajectory", "trajectories", "");
+    names = inputin.get_list<std::string>("trajectory", "trajectories", "", std::vector<std::string>());
     sw_trajectory = names.size() > 0;
 
     if (sw_trajectory)

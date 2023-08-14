@@ -312,12 +312,12 @@ void Trajectory<TF>::exec(Timeloop<TF>& timeloop, double time, unsigned long iti
                     traj.time_series.at(name).data=interpolate(
                             fields.a.at(name)->fld, ix[loc_i], iy[loc_j], iz[loc_k]);
                 }
-
-                // This is a bit wasteful (?), a specific send/recv should be enough,
-                // but we are only sending one float/double per variable....
-                for (auto& name : variables)
-                    master.broadcast(&traj.time_series.at(name).data, 1, mpiid_of_traj);
             }
+
+            // This is a bit wasteful (?), a specific send/recv should be enough,
+            // but we are only sending one float/double per variable....
+            for (auto& name : variables)
+                master.broadcast(&traj.time_series.at(name).data, 1, mpiid_of_traj);
         }
         else
         {

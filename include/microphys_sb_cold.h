@@ -105,6 +105,11 @@ namespace Sb_cold
     template<typename TF> constexpr TF k_w0  = 0.93;                    // Water
     template<typename TF> constexpr TF k_i0  = 0.176;                   // Ice
 
+    template<typename TF>
+    inline TF tanh2(const TF x)
+    {
+        return x * (TF(27) + x * x) / (TF(27) + TF(9) * x * x);
+    }
 
     template<typename TF>
     inline TF particle_meanmass(

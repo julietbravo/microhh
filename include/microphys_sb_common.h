@@ -72,21 +72,18 @@ namespace Sb_common
     }
 
 
-    template<typename TF>
+    template<typename TF, bool sw_integrate>
     void copy_slice_and_integrate(
             TF* const restrict fld_2d,
             const TF* const restrict fld_3d,
             const TF* const restrict fld_3d_tend,
             const TF* const restrict rho,
             const TF dt,
-            bool do_integration,
             const int istart, const int iend,
             const int jstart, const int jend,
             const int jstride, const int kstride,
             const int k)
     {
-        const TF fac = do_integration ? 1 : 0;
-
         for (int j = jstart; j < jend; j++)
             #pragma ivdep
             for (int i = istart; i < iend; i++)
@@ -95,7 +92,10 @@ namespace Sb_common
                 const int ijk = i + j * jstride + k * kstride;
 
                 // fld_3d_tend is still per kg, while fld_2d and fld_3d per m-3.
-                fld_2d[ij] = fld_3d[ijk] + fac*dt*rho[k]*fld_3d_tend[ijk];
+                if (sw_integrate)
+                    fld_2d[ij] = fld_3d[ijk] + rho[k] * fld_3d_tend[ijk] * dt;
+                else
+                    fld_2d[ij] = fld_3d[ijk];
             }
     }
 

@@ -1265,18 +1265,25 @@ void Microphys_sb06<TF>::exec(Thermo<TF>& thermo, Timeloop<TF>& timeloop, Stats<
 
         for (auto& it : hydro_types)
         {
+            auto copy_slice_wrapper = [&]<bool pre_integrate>()
+            {
+                Sb_common::copy_slice_and_integrate<TF, pre_integrate>(
+                        it.second.slice,
+                        fields.sp.at(it.first)->fld.data(),
+                        fields.st.at(it.first)->fld.data(),
+                        rho.data(),
+                        TF(dt),
+                        gd.istart, gd.iend,
+                        gd.jstart, gd.jend,
+                        gd.icells, gd.ijcells, k);
+            };
+
             // Copy 3D fields to 2D slices, and do partial
-            // integration of dynamics tendencies.
-            Sb_common::copy_slice_and_integrate(
-                    it.second.slice,
-                    fields.sp.at(it.first)->fld.data(),
-                    fields.st.at(it.first)->fld.data(),
-                    rho.data(),
-                    TF(dt),
-                    sw_integrate,
-                    gd.istart, gd.iend,
-                    gd.jstart, gd.jend,
-                    gd.icells, gd.ijcells, k);
+            // integration of dynamics/other tendencies.
+            if (sw_integrate)
+                copy_slice_wrapper.template operator()<true>();
+            else
+                copy_slice_wrapper.template operator()<false>();
 
             // Zero slice which gathers the conversion tendencies.
             for (int n=0; n<gd.ijcells; ++n)

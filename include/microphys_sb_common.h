@@ -167,6 +167,34 @@ namespace Sb_common
 
 
     template<typename TF>
+    void limit_tendencies(
+            TF* const restrict tend,
+            const TF* const restrict val,
+            const double dt,
+            const int istart, const int iend,
+            const int jstart, const int jend,
+            const int jstride)
+    {
+        const TF dti = TF(1)/dt;
+        const TF min_value = std::numeric_limits<double>::epsilon();
+
+        for (int j = jstart; j < jend; j++)
+            #pragma ivdep
+            for (int i = istart; i < iend; i++)
+            {
+                const int ij = i + j * jstride;
+
+                // Note BvS: this is really ugly, because it means that total water is (potentially)
+                // not conserved. The only way to do this properly is to follow the ICON method
+                // (which we should have done from the start...) and integrate `qr` et al. at a process
+                // level, limiting the tendencies to ensure that `qx` and `nx` stay positive.
+                const TF new_val = val[ij] + tend[ij] * dt;
+                tend[ij] = new_val < min_value ? (min_value - val[ij]) * dti : tend[ij];
+            }
+    }
+
+
+    template<typename TF>
     void implicit_time(
             TF* const restrict q_val,
             TF* const restrict q_sum,

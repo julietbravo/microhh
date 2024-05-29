@@ -1277,6 +1277,9 @@ void Thermo_moist<TF>::create(
     // Init the toolbox classes.
     boundary_cyclic.init();
 
+    // Determine whether ice is diagnostic.
+    ice_is_diagnostic = !fields.sp.count("qi");
+
     // Set up output classes
     create_stats(stats);
     create_column(column);
@@ -2082,22 +2085,22 @@ void Thermo_moist<TF>::create_stats(Stats<TF>& stats)
         stats.add_profs(*ql, "z", {"mean", "frac", "path", "cover", "w", "grad", "diff", "flux"}, group_name);
         fields.release_tmp(ql);
 
-        //if (sw_satadjust == Satadjust_type::Liquid_ice)
-        //{
-        //    auto qi = fields.get_tmp();
-        //    qi->name = "qi";
-        //    qi->longname = "Ice";
-        //    qi->unit = "kg kg-1";
-        //    stats.add_profs(*qi, "z", {"mean", "frac", "path", "cover"}, group_name);
-        //    fields.release_tmp(qi);
+        if (ice_is_diagnostic)
+        {
+            auto qi = fields.get_tmp();
+            qi->name = "qi";
+            qi->longname = "Ice";
+            qi->unit = "kg kg-1";
+            stats.add_profs(*qi, "z", {"mean", "frac", "path", "cover"}, group_name);
+            fields.release_tmp(qi);
 
-        //    auto qlqi = fields.get_tmp();
-        //    qlqi->name = "qlqi";
-        //    qlqi->longname = "Liquid water and ice";
-        //    qlqi->unit = "kg kg-1";
-        //    stats.add_profs(*qlqi, "z", {"mean", "frac", "path", "cover"}, group_name);
-        //    fields.release_tmp(qlqi);
-        //}
+            auto qlqi = fields.get_tmp();
+            qlqi->name = "qlqi";
+            qlqi->longname = "Liquid water and ice";
+            qlqi->unit = "kg kg-1";
+            stats.add_profs(*qlqi, "z", {"mean", "frac", "path", "cover"}, group_name);
+            fields.release_tmp(qlqi);
+        }
 
         auto qsat = fields.get_tmp();
         qsat->name = "qsat";
@@ -2130,11 +2133,11 @@ void Thermo_moist<TF>::create_column(Column<TF>& column)
         column.add_prof("ql", "Liquid water mixing ratio", "kg kg-1", "z");
         column.add_time_series("ql_path", "Liquid water path", "kg m-2");
 
-        //if (sw_satadjust == Satadjust_type::Liquid_ice)
-        //{
-        //    column.add_prof("qi", "Ice mixing ratio", "kg kg-1", "z");
-        //    column.add_time_series("qi_path", "Ice path", "kg m-2");
-        //}
+        if (ice_is_diagnostic)
+        {
+            column.add_prof("qi", "Ice mixing ratio", "kg kg-1", "z");
+            column.add_time_series("qi_path", "Ice path", "kg m-2");
+        }
     }
 }
 
@@ -2153,19 +2156,14 @@ void Thermo_moist<TF>::create_cross(Cross<TF>& cross)
         // Vectors with allowed cross variables for buoyancy and liquid water.
         const std::vector<std::string> allowed_crossvars_b = {"b", "b_bot", "b_fluxbot"};
         const std::vector<std::string> allowed_crossvars_ql = {"ql", "ql_path", "ql_base", "ql_top"};
-        const std::vector<std::string> allowed_crossvars_qi = {"qi", "qi_path"};
-        const std::vector<std::string> allowed_crossvars_qlqi = {"qlqi", "qlqi_path", "qlqi_base", "qlqi_top"};
         const std::vector<std::string> allowed_crossvars_qsat = {"qsat_path"};
         const std::vector<std::string> allowed_crossvars_misc = {"w500hpa"};
-        const std::vector<std::string> allowed_crossvars_qlqithv = {"qlqicore_max_thv_prime"};
 
         std::vector<std::string> bvars  = cross.get_enabled_variables(allowed_crossvars_b);
         std::vector<std::string> qlvars = cross.get_enabled_variables(allowed_crossvars_ql);
-        std::vector<std::string> qivars = cross.get_enabled_variables(allowed_crossvars_qi);
-        std::vector<std::string> qlqivars = cross.get_enabled_variables(allowed_crossvars_qlqi);
-        std::vector<std::string> qlqithvvars = cross.get_enabled_variables(allowed_crossvars_qlqithv);
         std::vector<std::string> qsatvars = cross.get_enabled_variables(allowed_crossvars_qsat);
         std::vector<std::string> miscvars = cross.get_enabled_variables(allowed_crossvars_misc);
+
 
         if (bvars.size() > 0)
             swcross_b  = true;
@@ -2173,8 +2171,25 @@ void Thermo_moist<TF>::create_cross(Cross<TF>& cross)
         if (qlvars.size() > 0)
             swcross_ql = true;
 
-        if (sw_satadjust == Satadjust_type::Liquid_ice)
+        if (qsatvars.size() > 0)
+            swcross_qsat = true;
+
+        // Merge into one vector
+        crosslist = bvars;
+        crosslist.insert(crosslist.end(), qlvars.begin(), qlvars.end());
+        crosslist.insert(crosslist.end(), qsatvars.begin(), qsatvars.end());
+        crosslist.insert(crosslist.end(), miscvars.begin(), miscvars.end());
+
+        if (ice_is_diagnostic)
         {
+            const std::vector<std::string> allowed_crossvars_qi = {"qi", "qi_path"};
+            const std::vector<std::string> allowed_crossvars_qlqi = {"qlqi", "qlqi_path", "qlqi_base", "qlqi_top"};
+            const std::vector<std::string> allowed_crossvars_qlqithv = {"qlqicore_max_thv_prime"};
+
+            std::vector<std::string> qivars = cross.get_enabled_variables(allowed_crossvars_qi);
+            std::vector<std::string> qlqivars = cross.get_enabled_variables(allowed_crossvars_qlqi);
+            std::vector<std::string> qlqithvvars = cross.get_enabled_variables(allowed_crossvars_qlqithv);
+
             if (qivars.size() > 0)
                 swcross_qi = true;
 
@@ -2183,25 +2198,11 @@ void Thermo_moist<TF>::create_cross(Cross<TF>& cross)
 
             if (qlqithvvars.size() > 0)
                 swcross_qlqithv = true;
-        }
 
-        if (qsatvars.size() > 0)
-            swcross_qsat = true;
-
-
-        // Merge into one vector
-        crosslist = bvars;
-        crosslist.insert(crosslist.end(), qlvars.begin(), qlvars.end());
-
-        if (sw_satadjust == Satadjust_type::Liquid_ice)
-        {
             crosslist.insert(crosslist.end(), qivars.begin(), qivars.end());
             crosslist.insert(crosslist.end(), qlqivars.begin(), qlqivars.end());
             crosslist.insert(crosslist.end(), qlqithvvars.begin(), qlqithvvars.end());
         }
-
-        crosslist.insert(crosslist.end(), qsatvars.begin(), qsatvars.end());
-        crosslist.insert(crosslist.end(), miscvars.begin(), miscvars.end());
     }
 }
 
@@ -2302,26 +2303,26 @@ void Thermo_moist<TF>::exec_stats(Stats<TF>& stats)
 
     fields.release_tmp(ql);
 
-    //if (sw_satadjust == Satadjust_type::Liquid_ice)
-    //{
-    //    // Calculate the ice stats
-    //    auto qi = fields.get_tmp();
-    //    qi->loc = gd.sloc;
+    if (ice_is_diagnostic)
+    {
+        // Calculate the ice stats
+        auto qi = fields.get_tmp();
+        qi->loc = gd.sloc;
 
-    //    get_thermo_field(*qi, "qi", true, true);
-    //    stats.calc_stats("qi", *qi, no_offset, no_threshold);
+        get_thermo_field(*qi, "qi", true, true);
+        stats.calc_stats("qi", *qi, no_offset, no_threshold);
 
-    //    fields.release_tmp(qi);
+        fields.release_tmp(qi);
 
-    //    // Calculate the combined liquid water and ice stats
-    //    auto qlqi = fields.get_tmp();
-    //    qlqi->loc = gd.sloc;
+        // Calculate the combined liquid water and ice stats
+        auto qlqi = fields.get_tmp();
+        qlqi->loc = gd.sloc;
 
-    //    get_thermo_field(*qlqi, "qlqi", true, true);
-    //    stats.calc_stats("qlqi", *qlqi, no_offset, no_threshold);
+        get_thermo_field(*qlqi, "qlqi", true, true);
+        stats.calc_stats("qlqi", *qlqi, no_offset, no_threshold);
 
-    //    fields.release_tmp(qlqi);
-    //}
+        fields.release_tmp(qlqi);
+    }
 
     // Calculate the saturated water vapor stats
     auto qsat = fields.get_tmp();
@@ -2388,23 +2389,23 @@ void Thermo_moist<TF>::exec_column(Column<TF>& column)
     column.calc_column("ql", output->fld.data(), no_offset);
     column.calc_time_series("ql_path", output->fld_bot.data(), no_offset);
 
-    //if (sw_satadjust == Satadjust_type::Liquid_ice)
-    //{
-    //    get_thermo_field(*output, "qi", false, true);
+    if (ice_is_diagnostic)
+    {
+        get_thermo_field(*output, "qi", false, true);
 
-    //    calc_path(
-    //        output->fld_bot.data(),
-    //        output->fld.data(),
-    //        bs_stats.rhoref.data(),
-    //        gd.dz.data(),
-    //        gd.istart, gd.iend,
-    //        gd.jstart, gd.jend,
-    //        gd.kstart, gd.kend,
-    //        gd.icells, gd.ijcells);
+        calc_path(
+            output->fld_bot.data(),
+            output->fld.data(),
+            bs_stats.rhoref.data(),
+            gd.dz.data(),
+            gd.istart, gd.iend,
+            gd.jstart, gd.jend,
+            gd.kstart, gd.kend,
+            gd.icells, gd.ijcells);
 
-    //    column.calc_column("qi", output->fld.data(), no_offset);
-    //    column.calc_time_series("qi_path", output->fld_bot.data(), no_offset);
-    //}
+        column.calc_column("qi", output->fld.data(), no_offset);
+        column.calc_time_series("qi_path", output->fld_bot.data(), no_offset);
+    }
 
     fields.release_tmp(output);
 }

@@ -141,6 +141,9 @@ class Thermo_moist : public Thermo<TF>
         bool swcross_qsat;
         bool swcross_qlqithv;
 
+        // Flag determining whether thermo has diagnostic ice in stats.
+        bool ice_is_diagnostic;
+
         std::vector<std::string> dumplist;         ///< List with all 3d dumps from the ini file.
 
         void create_stats(Stats<TF>&);   ///< Initialization of the statistics.

@@ -346,6 +346,7 @@ class Microphys_sb06 : public Microphys<TF>
         bool sw_microbudget;    // Output full microphysics budget terms
         bool sw_debug;          // Print debug info.
         bool sw_integrate;      // Pre-integrate water species in implicit solver.
+        bool sw_limiter;        // Limit conversion tendencies to guarantee qx > 0.
 
         //const int cloud_type = 2673;
         const int cloud_type = 2603;

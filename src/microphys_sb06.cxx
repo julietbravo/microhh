@@ -67,6 +67,7 @@ Microphys_sb06<TF>::Microphys_sb06(
     sw_integrate = inputin.get_item<bool>("micro", "swintegrate", "", false);
     sw_prognostic_ice = inputin.get_item<bool>("micro", "swprognosticice", "", true);
     sw_ice = inputin.get_item<bool>("micro", "swice", "", true);
+    sw_limiter = inputin.get_item<bool>("micro", "swlimiter", "", true);
 
     Nc0 = inputin.get_item<TF>("micro", "Nc0", "");
     if (!sw_prognostic_ice)
@@ -2189,13 +2190,14 @@ void Microphys_sb06<TF>::exec(Thermo<TF>& thermo, Timeloop<TF>& timeloop, Stats<
         for (auto& it : hydro_types)
         {
             // Limit tendencies to ensure that the field stays >= eps.
-            Sb_common::limit_tendencies(
-                    it.second.conversion_tend,
-                    it.second.slice,
-                    dt,
-                    gd.istart, gd.iend,
-                    gd.jstart, gd.jend,
-                    gd.icells);
+            if (sw_limiter)
+                Sb_common::limit_tendencies(
+                        it.second.conversion_tend,
+                        it.second.slice,
+                        dt,
+                        gd.istart, gd.iend,
+                        gd.jstart, gd.jend,
+                        gd.icells);
 
             // Integrate conversion tendencies into qr/Nr slices before implicit step.
             Sb_common::integrate_process(
@@ -2233,22 +2235,25 @@ void Microphys_sb06<TF>::exec(Thermo<TF>& thermo, Timeloop<TF>& timeloop, Stats<
                     k);
         }
 
-        // Also limit the diagnosed tendencies of qv and qc.
-        Sb_common::limit_tendencies(
-                (*qv_conversion_tend).data(),
-                (*qv).data(),
-                dt,
-                gd.istart, gd.iend,
-                gd.jstart, gd.jend,
-                gd.icells);
+        if (sw_limiter)
+        {
+            // Also limit the diagnosed tendencies of qv and qc.
+            Sb_common::limit_tendencies(
+                    (*qv_conversion_tend).data(),
+                    (*qv).data(),
+                    dt,
+                    gd.istart, gd.iend,
+                    gd.jstart, gd.jend,
+                    gd.icells);
 
-        Sb_common::limit_tendencies(
-                (*qc_conversion_tend).data(),
-                &ql->fld.data()[k*gd.ijcells],
-                dt,
-                gd.istart, gd.iend,
-                gd.jstart, gd.jend,
-                gd.icells);
+            Sb_common::limit_tendencies(
+                    (*qc_conversion_tend).data(),
+                    &ql->fld.data()[k*gd.ijcells],
+                    dt,
+                    gd.istart, gd.iend,
+                    gd.jstart, gd.jend,
+                    gd.icells);
+        }
 
         // Calculate thermodynamic tendencies `thl` and `qt`,
         // from microphysics tendencies excluding sedimentation.

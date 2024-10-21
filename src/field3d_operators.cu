@@ -209,6 +209,31 @@ TF Field3d_operators<TF>::calc_max_g(const TF* const restrict fld)
 
     return max_value;
 }
+
+template<typename TF>
+TF Field3d_operators<TF>::calc_min_g(const TF* const restrict fld)
+{
+    using namespace Tools_g;
+
+    const Grid_data<TF>& gd = grid.get_grid_data();
+    const TF scalefac = 1.;
+    TF min_values;
+
+    auto tmp = fields.get_tmp_g();
+
+    // Reduce 3D field excluding ghost cells and padding to jtot*ktot values
+    reduce_interior<TF>(fld, tmp->fld_g, gd.itot, gd.istart, gd.iend, gd.jtot, gd.jstart, gd.jend, gd.ktot, gd.kstart, gd.icells, gd.ijcells, Min_type);
+    // Reduce jtot*ktot to ktot values
+    reduce_all<TF>     (tmp->fld_g, &tmp->fld_g[gd.jtot*gd.ktot], gd.jtot*gd.ktot, gd.ktot, gd.jtot, Min_type, scalefac);
+    // Reduce ktot values to a single value
+    reduce_all<TF>     (&tmp->fld_g[gd.jtot*gd.ktot], tmp->fld_g, gd.ktot, 1, gd.ktot, Min_type, scalefac);
+    // Copy back result from GPU
+    cuda_safe_call(cudaMemcpy(&min_values, tmp->fld_g, sizeof(TF), cudaMemcpyDeviceToHost));
+
+    fields.release_tmp_g(tmp);
+
+    return min_values;
+}
 #endif
 
 

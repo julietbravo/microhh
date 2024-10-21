@@ -131,5 +131,7 @@ class Model
         void clear_gpu();
 
         void add_statistics_masks();
+
+        void check(const std::string&);
 };
 #endif

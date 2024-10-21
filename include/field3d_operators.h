@@ -49,6 +49,7 @@ class Field3d_operators
         TF calc_mean_2d_g(const TF* const); // Calculate mean from 2D (xy) field.
         TF calc_mean_g(const TF* const); // Calculate volume-weighted mean.
         TF calc_max_g(const TF* const);
+        TF calc_min_g(const TF* const);
         #endif
 
     private:

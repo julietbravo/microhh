@@ -73,6 +73,8 @@ namespace Tools_g
             rval = v1+v2;
         else if (function == Max_type)
             rval = fmax(v1,v2);
+        else if (function == Min_type)
+            rval = fmin(v1,v2);
         return rval;
     }
 

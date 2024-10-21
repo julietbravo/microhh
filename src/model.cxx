@@ -348,6 +348,8 @@ void Model<TF>::exec()
             // start the time loop
             while (true)
             {
+                check("start");
+
                 // Update the time dependent parameters.
                 grid      ->update_time_dependent(*timeloop);
                 boundary  ->update_time_dependent(*timeloop);
@@ -379,12 +381,15 @@ void Model<TF>::exec()
 
                 // Calculate the thermodynamics and the buoyancy tendency.
                 thermo->exec(timeloop->get_sub_time_step(), *stats);
+                check("thermo");
 
                 // Calculate the microphysics.
                 microphys->exec(*thermo, timeloop->get_dt(), *stats);
+                check("micro");
 
                 // Calculate the radiation fluxes and the related heating rate.
                 radiation->exec(*thermo, timeloop->get_time(), *timeloop, *stats, *aerosol, *background, *microphys);
+                check("radiation");
 
                 // Calculate Monin-Obukhov parameters (L, u*), and calculate
                 // surface fluxes, gradients, ...
@@ -402,12 +407,15 @@ void Model<TF>::exec()
                 boundary->set_ghost_cells_w(Boundary_w_type::Conservation_type);
                 advec->exec(*stats);
                 boundary->set_ghost_cells_w(Boundary_w_type::Normal_type);
+                check("advec");
 
                 // Calculate the diffusion tendency.
                 diff->exec(*stats);
+                check("diff");
 
                 // Calculate the tendency due to damping in the buffer layer.
                 buffer->exec(*stats);
+                check("buffer");
 
                 // Apply the scalar decay.
                 decay->exec(timeloop->get_sub_time_step(), *stats);
@@ -417,6 +425,7 @@ void Model<TF>::exec()
 
                 // Apply the large scale forcings. Keep this one always right before the pressure.
                 force->exec(timeloop->get_sub_time_step(), *thermo, *stats);
+                check("force");
 
                 // Set the immersed boundary conditions
                 ib->exec_momentum();
@@ -425,9 +434,11 @@ void Model<TF>::exec()
                 boundary->set_ghost_cells_w(Boundary_w_type::Conservation_type);
                 pres->exec(timeloop->get_sub_time_step(), *stats);
                 boundary->set_ghost_cells_w(Boundary_w_type::Normal_type);
+                check("pres");
 
                 // Apply the limiter as the last tendency.
                 limiter->exec(timeloop->get_sub_time_step(), *stats);
+                check("limiter");
 
                 // Calculate the total tendency statistics, if necessary
                 for (auto& it: fields->at)
@@ -860,6 +871,32 @@ void Model<TF>::print_status()
         }
     }
 }
+
+// Print the status information to the .out file.
+template<typename TF>
+void Model<TF>::check(const std::string& label)
+{
+   // if (!sw_debug)
+   //     return;
+
+    auto& gd = grid->get_grid_data();
+
+    std::cout << label << ", time = " << timeloop->get_time() << std::endl;
+
+    Field3d_operators field_ops(master, *grid, *fields);
+
+    for (auto& fld : fields->ap)
+    {
+        const TF fld_max = field_ops.calc_max_g(fld.second->fld_g);
+        const TF fld_min = field_ops.calc_min_g(fld.second->fld_g);
+
+        const TF tend_max = field_ops.calc_max_g(fields->at.at(fld.first)->fld_g);
+        const TF tend_min = field_ops.calc_min_g(fields->at.at(fld.first)->fld_g);
+
+        std::cout << " -> " << fld.first << ": field = (" << fld_min << ", " << fld_max << "), abs tend = (" << tend_min << ", " << tend_max << ")" << std::endl;
+    }
+}
+
 
 #ifdef FLOAT_SINGLE
 template class Model<float>;
